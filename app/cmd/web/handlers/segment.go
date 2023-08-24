@@ -7,87 +7,84 @@ import (
 	"io"
 	"log"
 	"main/internal/segment"
-	"main/internal/user"
 	"net/http"
 )
 
 func createSegment(w http.ResponseWriter, r *http.Request, segmentRepo segment.Repository) {
-	limit, offset, err := getLimitAndOffset(r.URL.Query())
+	ctx := context.Background()
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Println(err)
+		return
+	}
+	defer r.Body.Close()
+
+	var s *segment.SegmentDto
+	err = json.Unmarshal(body, &s)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		log.Println("Error parse query string:", err)
+		log.Println(err)
 		return
 	}
 
-	ctx := context.Background()
-	couriersFromDb, err := segmentRepo.FindByLimitAndOffset(ctx, limit, offset)
+	err = segmentRepo.Create(ctx, &segment.Segment{
+		Name: s.Name,
+	})
 	if err != nil {
-		log.Println("Error to get couriers from db", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	data, err := json.Marshal(couriersFromDb)
-	if err != nil {
-		log.Println("Error marshal data:", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(data)
-	if err != nil {
-		log.Println("Error write data:", err)
+		log.Println("Error to create segment:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }
 
 func deleteSegment(w http.ResponseWriter, r *http.Request, segmentRepo segment.Repository) {
-	var cours []*user.CourierDto
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(500)
-		fmt.Println(err)
-		return
-	}
-	defer r.Body.Close()
-
-	err = json.Unmarshal(body, &cours)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Println(err)
-		return
-	}
-
-	couriers := make([]*user.Courier, 0, len(cours))
-	for _, cour := range cours {
-		ok, _ := cour.Valid()
-		if !ok {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		couriers = append(couriers, &user.Courier{
-			Id:           cour.Id,
-			CourierType:  cour.CourierType,
-			Regions:      cour.Regions,
-			WorkingHours: cour.WorkingHours,
-		})
-	}
-
-	ctx := context.Background()
-	err = segmentRepo.CreateAll(ctx, couriers)
-	if err != nil {
-		log.Println("Error to create couriers:", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	//var cours []*user.CourierDto
+	//
+	//body, err := io.ReadAll(r.Body)
+	//if err != nil {
+	//	w.WriteHeader(500)
+	//	fmt.Println(err)
+	//	return
+	//}
+	//defer r.Body.Close()
+	//
+	//err = json.Unmarshal(body, &cours)
+	//if err != nil {
+	//	w.WriteHeader(http.StatusBadRequest)
+	//	fmt.Println(err)
+	//	return
+	//}
+	//
+	//couriers := make([]*user.Courier, 0, len(cours))
+	//for _, cour := range cours {
+	//	ok, _ := cour.Valid()
+	//	if !ok {
+	//		w.WriteHeader(http.StatusBadRequest)
+	//		return
+	//	}
+	//	couriers = append(couriers, &user.Courier{
+	//		Id:           cour.Id,
+	//		CourierType:  cour.CourierType,
+	//		Regions:      cour.Regions,
+	//		WorkingHours: cour.WorkingHours,
+	//	})
+	//}
+	//
+	//ctx := context.Background()
+	//err = segmentRepo.CreateAll(ctx, couriers)
+	//if err != nil {
+	//	log.Println("Error to create couriers:", err)
+	//	w.WriteHeader(http.StatusInternalServerError)
+	//	return
+	//}
 }
 
 func Segments(segmentRepo segment.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			createSegment(w, r, segmentRepo)
-			return
 		} else if r.Method == "DELETE" {
 			deleteSegment(w, r, segmentRepo)
 		}

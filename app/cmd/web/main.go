@@ -8,8 +8,7 @@ import (
 	"log"
 	"main/cmd/web/handlers"
 	"main/internal/config"
-	"main/internal/courier"
-	"main/internal/order"
+	"main/internal/segment"
 	"main/pkg"
 	"net/http"
 	"os"
@@ -42,33 +41,45 @@ func main() {
 		log.Fatalln("Error create db client:", err)
 	}
 
-	// Create redis client
-	redisClient, err := pkg.NewRedisClient(context.Background(), cfg)
-	if err != nil {
-		log.Fatalln("Error create redis client:", err)
-	}
+	//// Create redis client
+	//redisClient, err := pkg.NewRedisClient(context.Background(), cfg)
+	//if err != nil {
+	//	log.Fatalln("Error create redis client:", err)
+	//}
 
 	// Init repositories
-	courierRepo := courier.NewRepo(psqlClient)
-	orderRepo := order.NewRepo(psqlClient)
+	//courierRepo := user.NewRepo(psqlClient)
+	segmentRepo := segment.NewRepo(psqlClient)
 
 	r := mux.NewRouter()
 
-	// Couriers
-	r.HandleFunc("/couriers", handlers.RateLimiter(handlers.Couriers(courierRepo))).Methods("GET", "POST")
-	r.HandleFunc("/couriers/{id:[0-9]+}", handlers.RateLimiter(handlers.CourierId(courierRepo))).Methods("GET")
-	r.HandleFunc(
-		"/couriers/meta-info/{id:[0-9]+}",
-		handlers.RateLimiter(handlers.CourierRating(orderRepo, courierRepo)),
-	).Methods("GET")
+	// Create and delete segment
+	r.HandleFunc("/segment", handlers.RateLimiter(
+		handlers.Segments(segmentRepo)),
+	).Methods("POST", "DELETE")
 
-	// Orders
-	r.HandleFunc("/orders", handlers.RateLimiter(handlers.Orders(orderRepo))).Methods("GET", "POST")
-	r.HandleFunc("/orders/{id:[0-9]+}", handlers.RateLimiter(handlers.OrderId(orderRepo))).Methods("GET")
-	r.HandleFunc(
-		"/orders/complete",
-		handlers.RateLimiter(handlers.OrderComplete(orderRepo, redisClient)),
-	).Methods("POST")
+	//// Add user to segment and get active user segments
+	//r.HandleFunc("/segment/user", handlers.RateLimiter(
+	//	handlers.Couriers(courierRepo)),
+	//).Methods("POST", "GET")
+
+	// **************************************************************************************************
+
+	//// Couriers
+	//r.HandleFunc("/couriers", handlers.RateLimiter(handlers.Couriers(courierRepo))).Methods("GET", "POST")
+	//r.HandleFunc("/couriers/{id:[0-9]+}", handlers.RateLimiter(handlers.CourierId(courierRepo))).Methods("GET")
+	//r.HandleFunc(
+	//	"/couriers/meta-info/{id:[0-9]+}",
+	//	handlers.RateLimiter(handlers.CourierRating(orderRepo, courierRepo)),
+	//).Methods("GET")
+	//
+	//// Orders
+	//r.HandleFunc("/orders", handlers.RateLimiter(handlers.Orders(orderRepo))).Methods("GET", "POST")
+	//r.HandleFunc("/orders/{id:[0-9]+}", handlers.RateLimiter(handlers.OrderId(orderRepo))).Methods("GET")
+	//r.HandleFunc(
+	//	"/orders/complete",
+	//	handlers.RateLimiter(handlers.OrderComplete(orderRepo, redisClient)),
+	//).Methods("POST")
 
 	http.Handle("/", r)
 
