@@ -1,0 +1,14 @@
+app:
+  host: "app"
+  port: "8080"
+
+db:
+  user: "postgres"
+  host: "db"
+  port: "5432"
+  name: "avito"
+  password: "password"
+
+redis:
+  host: "redis"
+  port: "6379"
