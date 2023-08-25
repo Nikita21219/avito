@@ -16,26 +16,26 @@ package handlers
 //)
 //
 //func getOrders(w http.ResponseWriter, r *http.Request, orderRepo segment.Repository) {
-//	limit, offset, err := getLimitAndOffset(r.URL.Query())
-//	if err != nil {
+//	limit, offset, e := getLimitAndOffset(r.URL.Query())
+//	if e != nil {
 //		w.WriteHeader(http.StatusBadRequest)
-//		log.Println("Error parse query string:", err)
+//		log.Println("Error parse query string:", e)
 //		return
 //	}
 //
 //	ctx := context.Background()
-//	orders, err := orderRepo.FindByLimitAndOffset(ctx, limit, offset)
-//	if err != nil {
-//		log.Println("Error to get orders from db", err)
+//	orders, e := orderRepo.FindByLimitAndOffset(ctx, limit, offset)
+//	if e != nil {
+//		log.Println("Error to get orders from db", e)
 //		w.WriteHeader(http.StatusInternalServerError)
 //		return
 //	}
 //	ordersDto := make([]segment.OrderDto, 0, len(orders))
 //	for _, o := range orders {
-//		t, err := o.CompletedTime.Value()
-//		if err != nil {
+//		t, e := o.CompletedTime.Value()
+//		if e != nil {
 //			w.WriteHeader(http.StatusInternalServerError)
-//			log.Println("Time not valid:", err)
+//			log.Println("Time not valid:", e)
 //			return
 //		}
 //		var completedTime string
@@ -53,16 +53,16 @@ package handlers
 //		})
 //	}
 //
-//	data, err := json.Marshal(ordersDto)
-//	if err != nil {
-//		log.Println("Error marshal data:", err)
+//	data, e := json.Marshal(ordersDto)
+//	if e != nil {
+//		log.Println("Error marshal data:", e)
 //		w.WriteHeader(http.StatusInternalServerError)
 //		return
 //	}
 //	w.Header().Set("Content-Type", "application/json")
-//	_, err = w.Write(data)
-//	if err != nil {
-//		log.Println("Error write data:", err)
+//	_, e = w.Write(data)
+//	if e != nil {
+//		log.Println("Error write data:", e)
 //		w.WriteHeader(http.StatusInternalServerError)
 //		return
 //	}
@@ -71,18 +71,18 @@ package handlers
 //func pushOrders(w http.ResponseWriter, r *http.Request, orderRepo segment.Repository) {
 //	var ordersDto []*segment.OrderDto
 //
-//	body, err := io.ReadAll(r.Body)
-//	if err != nil {
+//	body, e := io.ReadAll(r.Body)
+//	if e != nil {
 //		w.WriteHeader(500)
-//		fmt.Println(err)
+//		fmt.Println(e)
 //		return
 //	}
 //	defer r.Body.Close()
 //
-//	err = json.Unmarshal(body, &ordersDto)
-//	if err != nil {
+//	e = json.Unmarshal(body, &ordersDto)
+//	if e != nil {
 //		w.WriteHeader(http.StatusBadRequest)
-//		fmt.Println(err)
+//		fmt.Println(e)
 //		return
 //	}
 //
@@ -102,9 +102,9 @@ package handlers
 //	}
 //
 //	ctx := context.Background()
-//	err = orderRepo.CreateAll(ctx, orders)
-//	if err != nil {
-//		log.Println("Error to create orders:", err)
+//	e = orderRepo.CreateAll(ctx, orders)
+//	if e != nil {
+//		log.Println("Error to create orders:", e)
 //		w.WriteHeader(http.StatusInternalServerError)
 //		return
 //	}
@@ -123,25 +123,25 @@ package handlers
 //
 //func OrderId(orderRepo segment.Repository) http.HandlerFunc {
 //	return func(w http.ResponseWriter, r *http.Request) {
-//		id, err := strconv.Atoi(mux.Vars(r)["id"])
-//		if err != nil {
+//		id, e := strconv.Atoi(mux.Vars(r)["id"])
+//		if e != nil {
 //			w.WriteHeader(http.StatusBadRequest)
-//			log.Println("Error to convert ascii to int:", err)
+//			log.Println("Error to convert ascii to int:", e)
 //			return
 //		}
 //
 //		ctx := context.Background()
-//		o, err := orderRepo.FindOne(ctx, id)
-//		if err != nil {
-//			log.Println("Error to get segment from db:", err)
+//		o, e := orderRepo.FindOne(ctx, id)
+//		if e != nil {
+//			log.Println("Error to get segment from db:", e)
 //			w.WriteHeader(http.StatusBadRequest)
 //			return
 //		}
 //
-//		t, err := o.CompletedTime.Value()
-//		if err != nil {
+//		t, e := o.CompletedTime.Value()
+//		if e != nil {
 //			w.WriteHeader(http.StatusInternalServerError)
-//			log.Println("Time not valid:", err)
+//			log.Println("Time not valid:", e)
 //		}
 //
 //		var completedTime string
@@ -149,7 +149,7 @@ package handlers
 //			completedTime = o.CompletedTime.Time.Format("2006-01-02")
 //		}
 //
-//		data, err := json.Marshal(segment.OrderDto{
+//		data, e := json.Marshal(segment.OrderDto{
 //			Id:            o.Id,
 //			Weight:        o.Weight,
 //			Region:        o.Weight,
@@ -157,15 +157,15 @@ package handlers
 //			Price:         o.Price,
 //			CompletedTime: completedTime,
 //		})
-//		if err != nil {
-//			log.Println("Error marshal data:", err)
+//		if e != nil {
+//			log.Println("Error marshal data:", e)
 //			w.WriteHeader(http.StatusInternalServerError)
 //			return
 //		}
 //		w.Header().Set("Content-Type", "application/json")
-//		_, err = w.Write(data)
-//		if err != nil {
-//			log.Println("Error write data:", err)
+//		_, e = w.Write(data)
+//		if e != nil {
+//			log.Println("Error write data:", e)
 //			w.WriteHeader(http.StatusInternalServerError)
 //			return
 //		}
@@ -174,10 +174,10 @@ package handlers
 //
 //func OrderComplete(orderRepo segment.Repository, rdb *redis.Client) http.HandlerFunc {
 //	return IdempotentKeyCheckMiddleware(rdb, func(w http.ResponseWriter, r *http.Request, oc *order_complete.OrderCompleteDto) {
-//		o, err := orderRepo.FindOne(context.Background(), oc.OrderId)
-//		if err != nil {
+//		o, e := orderRepo.FindOne(context.Background(), oc.OrderId)
+//		if e != nil {
 //			w.WriteHeader(http.StatusBadRequest)
-//			log.Println("Error to complete segment:", err)
+//			log.Println("Error to complete segment:", e)
 //			return
 //		}
 //
@@ -187,10 +187,10 @@ package handlers
 //			return
 //		}
 //
-//		err = orderRepo.Update(context.Background(), o, oc)
-//		if err != nil {
+//		e = orderRepo.Update(context.Background(), o, oc)
+//		if e != nil {
 //			w.WriteHeader(http.StatusInternalServerError)
-//			log.Printf("Error to update segment with id %d: %s", o.Id, err)
+//			log.Printf("Error to update segment with id %d: %s", o.Id, e)
 //			return
 //		}
 //		log.Printf("Order with id %d updated successfully", o.Id)

@@ -1,9 +1,34 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"golang.org/x/time/rate"
+	"io"
+	"main/internal/segment"
 	"net/http"
 )
+
+func unmarshalSegment(w http.ResponseWriter, r *http.Request) (*segment.SegmentDto, error) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	var s *segment.SegmentDto
+	if err = json.Unmarshal(body, &s); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, err
+	}
+	if !s.Valid() {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, fmt.Errorf("segment not valid")
+	}
+
+	return s, nil
+}
 
 //type NextHandler func(w http.ResponseWriter, r *http.Request, oc *order_complete.OrderCompleteDto)
 
@@ -18,13 +43,13 @@ import (
 //		limits = []string{"1"}
 //	}
 //
-//	offset, err := strconv.Atoi(offsets[0])
-//	if err != nil || offset < 0 {
-//		return -1, -1, err
+//	offset, e := strconv.Atoi(offsets[0])
+//	if e != nil || offset < 0 {
+//		return -1, -1, e
 //	}
-//	limit, err := strconv.Atoi(limits[0])
-//	if err != nil || limit < 0 {
-//		return -1, -1, err
+//	limit, e := strconv.Atoi(limits[0])
+//	if e != nil || limit < 0 {
+//		return -1, -1, e
 //	}
 //
 //	return limit, offset, nil
@@ -42,23 +67,23 @@ import (
 //	}
 //
 //	layout := "2006-01-02"
-//	_, err := time.Parse(layout, startDate[0])
-//	if err != nil {
-//		return time.Time{}, time.Time{}, err
+//	_, e := time.Parse(layout, startDate[0])
+//	if e != nil {
+//		return time.Time{}, time.Time{}, e
 //	}
-//	_, err = time.Parse(layout, endDate[0])
-//	if err != nil {
-//		return time.Time{}, time.Time{}, err
-//	}
-//
-//	start, err := time.Parse(layout, startDate[0])
-//	if err != nil {
-//		return time.Time{}, time.Time{}, err
+//	_, e = time.Parse(layout, endDate[0])
+//	if e != nil {
+//		return time.Time{}, time.Time{}, e
 //	}
 //
-//	end, err := time.Parse(layout, endDate[0])
-//	if err != nil {
-//		return time.Time{}, time.Time{}, err
+//	start, e := time.Parse(layout, startDate[0])
+//	if e != nil {
+//		return time.Time{}, time.Time{}, e
+//	}
+//
+//	end, e := time.Parse(layout, endDate[0])
+//	if e != nil {
+//		return time.Time{}, time.Time{}, e
 //	}
 //
 //	if end.Before(start) {
@@ -76,18 +101,18 @@ import (
 //			return
 //		}
 //
-//		stream, err := io.ReadAll(r.Body)
-//		if err != nil {
-//			log.Println("Error to read request body:", err)
+//		stream, e := io.ReadAll(r.Body)
+//		if e != nil {
+//			log.Println("Error to read request body:", e)
 //			w.WriteHeader(http.StatusBadRequest)
 //			return
 //		}
 //		defer r.Body.Close()
 //
 //		oc := &order_complete.OrderCompleteDto{}
-//		err = json.Unmarshal(stream, oc)
-//		if err != nil {
-//			log.Println("Error unmarshal data from body request:", err)
+//		e = json.Unmarshal(stream, oc)
+//		if e != nil {
+//			log.Println("Error unmarshal data from body request:", e)
 //			w.WriteHeader(http.StatusBadRequest)
 //			return
 //		} else if !oc.Valid() {
@@ -104,16 +129,16 @@ import (
 //			return
 //		}
 //
-//		b, err := lastTimeParams.Bytes()
-//		if err != nil {
-//			log.Println("Error convert data from redis to bytes:", err)
+//		b, e := lastTimeParams.Bytes()
+//		if e != nil {
+//			log.Println("Error convert data from redis to bytes:", e)
 //			w.WriteHeader(http.StatusInternalServerError)
 //			return
 //		}
 //
 //		ocLast := order_complete.OrderCompleteDto{}
-//		err = json.Unmarshal(b, &ocLast)
-//		if err != nil {
+//		e = json.Unmarshal(b, &ocLast)
+//		if e != nil {
 //			w.WriteHeader(http.StatusInternalServerError)
 //			return
 //		}
@@ -140,9 +165,9 @@ import (
 //	}
 //	hours := endDate.Sub(startDate).Hours()
 //	courierId := int(orders[0].CourierId.Int64)
-//	c, err := courierRepo.FindOne(context.Background(), courierId)
-//	if err != nil {
-//		return -1, err
+//	c, e := courierRepo.FindOne(context.Background(), courierId)
+//	if e != nil {
+//		return -1, e
 //	}
 //	multiplier := 0.0
 //	switch c.CourierType {

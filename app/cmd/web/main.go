@@ -42,9 +42,9 @@ func main() {
 	}
 
 	//// Create redis client
-	//redisClient, err := pkg.NewRedisClient(context.Background(), cfg)
-	//if err != nil {
-	//	log.Fatalln("Error create redis client:", err)
+	//redisClient, e := pkg.NewRedisClient(context.Background(), cfg)
+	//if e != nil {
+	//	log.Fatalln("Error create redis client:", e)
 	//}
 
 	// Init repositories
