@@ -42,11 +42,11 @@ func main() {
 		log.Fatalln("Error create db client:", err)
 	}
 
-	//// Create redis client
-	//redisClient, e := pkg.NewRedisClient(context.Background(), cfg)
-	//if e != nil {
-	//	log.Fatalln("Error create redis client:", e)
-	//}
+	// Create redis client
+	redisClient, e := pkg.NewRedisClient(context.Background(), cfg)
+	if e != nil {
+		log.Fatalln("Error create redis client:", e)
+	}
 
 	// Init repositories
 	userRepo := user.NewRepo(psqlClient)
@@ -56,31 +56,13 @@ func main() {
 
 	// Create and delete segment
 	r.HandleFunc("/segment", handlers.RateLimiter(
-		handlers.Segments(segmentRepo)),
+		handlers.Segments(segmentRepo, redisClient)),
 	).Methods("POST", "DELETE")
 
 	// Add user to segment and get active user segments
 	r.HandleFunc("/segment/user", handlers.RateLimiter(
-		handlers.Users(userRepo)),
+		handlers.Users(userRepo, redisClient)),
 	).Methods("POST", "GET")
-
-	// **************************************************************************************************
-
-	//// Couriers
-	//r.HandleFunc("/couriers", handlers.RateLimiter(handlers.Couriers(courierRepo))).Methods("GET", "POST")
-	//r.HandleFunc("/couriers/{id:[0-9]+}", handlers.RateLimiter(handlers.CourierId(courierRepo))).Methods("GET")
-	//r.HandleFunc(
-	//	"/couriers/meta-info/{id:[0-9]+}",
-	//	handlers.RateLimiter(handlers.CourierRating(orderRepo, courierRepo)),
-	//).Methods("GET")
-	//
-	//// Orders
-	//r.HandleFunc("/orders", handlers.RateLimiter(handlers.Orders(orderRepo))).Methods("GET", "POST")
-	//r.HandleFunc("/orders/{id:[0-9]+}", handlers.RateLimiter(handlers.OrderId(orderRepo))).Methods("GET")
-	//r.HandleFunc(
-	//	"/orders/complete",
-	//	handlers.RateLimiter(handlers.OrderComplete(orderRepo, redisClient)),
-	//).Methods("POST")
 
 	http.Handle("/", r)
 

@@ -2,15 +2,19 @@ package handlers
 
 import (
 	"context"
-	"errors"
+	"github.com/redis/go-redis/v9"
 	"log"
-	"main/internal/e"
 	"main/internal/segment"
 	"net/http"
 )
 
-func createSegment(w http.ResponseWriter, r *http.Request, segmentRepo segment.Repository) {
-	// TODO add idempotent key
+func createSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
+	segmentRepo, ok := repo.(segment.Repository)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	ctx := context.Background()
 	s, err := unmarshalSegment(w, r)
 	if err != nil {
@@ -18,19 +22,16 @@ func createSegment(w http.ResponseWriter, r *http.Request, segmentRepo segment.R
 	}
 
 	err = segmentRepo.Create(ctx, &segment.Segment{Slug: s.Slug})
-	var dse *e.DuplicateSegmentError
-	if errors.As(err, &dse) {
-		w.WriteHeader(http.StatusConflict)
-		return
-	} else if err != nil {
-		log.Println("error to create segment:", err)
+	checkErrors(w, err)
+}
+
+func deleteSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
+	segmentRepo, ok := repo.(segment.Repository)
+	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-}
 
-func deleteSegment(w http.ResponseWriter, r *http.Request, segmentRepo segment.Repository) {
-	// TODO add idempotent key
 	ctx := context.Background()
 	s, err := unmarshalSegment(w, r)
 	if err != nil {
@@ -44,12 +45,12 @@ func deleteSegment(w http.ResponseWriter, r *http.Request, segmentRepo segment.R
 	}
 }
 
-func Segments(segmentRepo segment.Repository) http.HandlerFunc {
+func Segments(segmentRepo segment.Repository, rdb *redis.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
-			createSegment(w, r, segmentRepo)
+			IdempotentKeyMiddleware(rdb, createSegment, segmentRepo)(w, r)
 		} else if r.Method == "DELETE" {
-			deleteSegment(w, r, segmentRepo)
+			IdempotentKeyMiddleware(rdb, deleteSegment, segmentRepo)(w, r)
 		}
 	}
 }

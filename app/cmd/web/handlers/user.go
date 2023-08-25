@@ -3,17 +3,22 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"github.com/redis/go-redis/v9"
 	"io"
 	"log"
-	"main/internal/e"
 	"main/internal/segment"
 	"main/internal/user"
 	"net/http"
 	"strconv"
 )
 
-func getActiveSegments(w http.ResponseWriter, r *http.Request, userRepo user.Repository) {
+func getActiveSegments(w http.ResponseWriter, r *http.Request, repo interface{}) {
+	userRepo, ok := repo.(user.Repository)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	userId, ok := r.URL.Query()["id"]
 	if !ok || len(userId) != 1 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -55,8 +60,12 @@ func getActiveSegments(w http.ResponseWriter, r *http.Request, userRepo user.Rep
 	}
 }
 
-func addDelSegment(w http.ResponseWriter, r *http.Request, userRepo user.Repository) {
-	// TODO add idempotent key
+func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
+	userRepo, ok := repo.(user.Repository)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	ctx := context.Background()
 
@@ -78,26 +87,15 @@ func addDelSegment(w http.ResponseWriter, r *http.Request, userRepo user.Reposit
 	}
 
 	err = userRepo.AddDelSegments(ctx, seg)
-
-	var dse *e.DuplicateSegmentError
-	if errors.As(err, &dse) {
-		w.WriteHeader(http.StatusConflict)
-		return
-	} else if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	checkErrors(w, err)
 }
 
-func Users(userRepo user.Repository) http.HandlerFunc {
+func Users(userRepo user.Repository, rdb *redis.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
-			getActiveSegments(w, r, userRepo)
-			return
+			IdempotentKeyMiddleware(rdb, getActiveSegments, userRepo)(w, r)
 		} else if r.Method == "POST" {
-			addDelSegment(w, r, userRepo)
-			return
+			IdempotentKeyMiddleware(rdb, addDelSegment, userRepo)(w, r)
 		}
 	}
 }

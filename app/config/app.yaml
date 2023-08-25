@@ -13,6 +13,7 @@ db:
   password: "password"
 
 redis:
-  host: "redis"
+  # TODO change host to "redis"
+  host: "localhost"
   # TODO change port
   port: "6380"
