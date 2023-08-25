@@ -3,22 +3,18 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/redis/go-redis/v9"
 	"io"
 	"log"
+	"main/internal/e"
 	"main/internal/segment"
 	"main/internal/user"
 	"net/http"
 	"strconv"
 )
 
-func getActiveSegments(w http.ResponseWriter, r *http.Request, repo interface{}) {
-	userRepo, ok := repo.(user.Repository)
-	if !ok {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
+func getActiveSegments(w http.ResponseWriter, r *http.Request, userRepo user.Repository) {
 	userId, ok := r.URL.Query()["id"]
 	if !ok || len(userId) != 1 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -33,6 +29,11 @@ func getActiveSegments(w http.ResponseWriter, r *http.Request, repo interface{})
 	ctx := context.Background()
 	us, err := userRepo.FindByUserId(ctx, id)
 	if err != nil {
+		var notFound *e.UserNotFoundError
+		if errors.As(err, &notFound) {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -93,7 +94,7 @@ func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 func Users(userRepo user.Repository, rdb *redis.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
-			IdempotentKeyMiddleware(rdb, getActiveSegments, userRepo)(w, r)
+			getActiveSegments(w, r, userRepo)
 		} else if r.Method == "POST" {
 			IdempotentKeyMiddleware(rdb, addDelSegment, userRepo)(w, r)
 		}

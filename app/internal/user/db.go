@@ -42,6 +42,10 @@ func (r *repository) FindByUserId(ctx context.Context, userId int) (*Segments, e
 		return nil, err
 	}
 
+	if len(segments) == 0 {
+		return nil, &e.UserNotFoundError{UserId: userId}
+	}
+
 	us := &Segments{
 		UserId:   userId,
 		Segments: segments,

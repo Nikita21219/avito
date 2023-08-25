@@ -1,0 +1,157 @@
+openapi: 3.0.0
+
+info:
+  title: Avito API
+  description: Сервис динамического сегментирования пользователей
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080/
+
+tags:
+  - name: segment
+  - name: user-segments
+
+paths:
+  /segment:
+    post:
+      tags:
+        - segment
+      summary: Создание сегмента
+      description: Метод для создания нового сегмента
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - slug
+              properties:
+                slug:
+                  type: string
+                  description: Название сегмента который нужно создать
+      responses:
+        '200':
+          description: Успешное создание сегмента
+        '400':
+          description: Ошибка валидации или отсутствие ключа идемпотентности
+        '409':
+          description: Такое имя сегмента уже существует или ключ идемпотентности уже был обработан
+        '500':
+          description: Внутренняя ошибка сервера
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          description: Ключ идемпотентности, должен быть установлен на стороне фронтенда
+          required: true
+          schema:
+            type: string
+    delete:
+      tags:
+        - segment
+      summary: Удаление сегмента
+      description: Метод для удаления существующего сегмента
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - slug
+              type: object
+              properties:
+                slug:
+                  type: string
+                  description: Название сегмента, который нужно удалить
+      responses:
+        '200':
+          description: Успешное удаление сегмента. Если сегмента с таким именем не существует, то состояние БД не поменяется
+        '400':
+          description: Ошибка валидации или отсутствие ключа идемпотентности
+        '409':
+          description: Ключ идемпотентности уже был обработан
+        '500':
+          description: Внутренняя ошибка сервера
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          description: Ключ идемпотентности, должен быть установлен на стороне фронтенда
+          required: true
+          schema:
+            type: string
+
+  /segment/user:
+    get:
+      summary: Получение сегментов пользователя
+      description: Метод получения активных сегментов пользователя
+      tags:
+        - user-segments
+      parameters:
+        - name: id
+          in: query
+          description: Идентификатор пользователя
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный запрос, возвращается список сегментов пользователя
+          content:
+            application/json:
+              example:
+                user_id: 1
+                segments:
+                  - slug: AVITO_VOICE_MESSAGES
+                  - slug: AVITO_PERFORMANCE_VAS
+                  - slug: AVITO_DISCOUNT_30
+        '204':
+          description: Пользователь не найден
+        '400':
+          description: Ошибка валидации параметров запроса
+        '500':
+          description: Внутренняя ошибка сервера
+
+    post:
+      summary: Добавление и удаление сегментов пользователя
+      description: Метод добавления пользователя в сегмент. Принимает список slug (названий) сегментов которые нужно добавить пользователю, список slug (названий) сегментов которые нужно удалить у пользователя, id пользователя.
+      tags:
+        - user-segments
+      requestBody:
+        description: Данные для операции добавления и удаления сегментов пользователя
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - user_id
+                - add
+                - del
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                  description: Идентификатор пользователя
+                add:
+                  type: array
+                  items:
+                    type: string
+                  description: Массив названий сегментов для добавления. Если список пуст, то добавления не произойдет
+                del:
+                  type: array
+                  items:
+                    type: string
+                  description: Массив названий сегментов для удаления. Если список пуст, то удаления не произойдет
+              example:
+                user_id: 1
+                add: ["AVITO_VOICE_MESSAGES", "AVITO_DISCOUNT_30"]
+                del: ["AVITO_DISCOUNT_50"]
+      responses:
+        '200':
+          description: Успешный запрос, операция выполнена успешно
+        '400':
+          description: Ошибка валидации или отсутствие ключа идемпотентности
+        '409':
+          description: Ключ идемпотентности уже был обработан либо пользователь уже входит в один из сегментов
+        '500':
+          description: Внутренняя ошибка сервера

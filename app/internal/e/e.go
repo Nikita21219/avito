@@ -19,3 +19,11 @@ func IsDuplicateError(err error) bool {
 	}
 	return false
 }
+
+type UserNotFoundError struct {
+	UserId int
+}
+
+func (e *UserNotFoundError) Error() string {
+	return fmt.Sprintf("user with id '%d' not found", e.UserId)
+}
