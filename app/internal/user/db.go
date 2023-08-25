@@ -3,6 +3,10 @@ package user
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v4"
+	"main/internal/e"
+	"main/internal/segment"
 	"main/pkg"
 	"strings"
 )
@@ -11,88 +15,139 @@ type repository struct {
 	client pkg.DBClient
 }
 
-func (r *repository) CreateOne(ctx context.Context, c *Courier) error {
-	q := `INSERT INTO user (courier_type, regions, working_hours) VALUES ($1, $2, $3) RETURNING id`
-	row := r.client.QueryRow(ctx, q, c.CourierType, c.Regions, c.WorkingHours)
-	if err := row.Scan(&c.Id); err != nil {
+func (r *repository) FindByUserId(ctx context.Context, userId int) (*Segments, error) {
+	q := `
+		SELECT us.segment_id, slug 
+		FROM segments JOIN user_segments us ON segments.segment_id = us.segment_id 
+		WHERE user_id = $1;
+	`
+
+	rows, err := r.client.Query(ctx, q, userId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	segments := make([]*segment.Segment, 0)
+
+	for rows.Next() {
+		var s segment.Segment
+		err = rows.Scan(&s.Id, &s.Slug)
+		if err != nil {
+			return nil, err
+		}
+		segments = append(segments, &s)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	us := &Segments{
+		UserId:   userId,
+		Segments: segments,
+	}
+	return us, nil
+}
+
+func getSegmentIdsBySlugs(ctx context.Context, tx pgx.Tx, slugs []string) ([]int, error) {
+	q := `SELECT segment_id FROM segments WHERE slug = ANY($1);`
+	slugsArr := pgtype.TextArray{}
+	if err := slugsArr.Set(slugs); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, q, slugsArr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	segmentIds := make([]int, 0)
+	for rows.Next() {
+		var segmentId int
+		err = rows.Scan(&segmentId)
+		if err != nil {
+			return nil, err
+		}
+		segmentIds = append(segmentIds, segmentId)
+	}
+	return segmentIds, nil
+}
+
+func addSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) error {
+	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
+	if err != nil {
+		return err
+	}
+
+	q := `INSERT INTO user_segments (user_id, segment_id) VALUES `
+
+	values := make([]string, 0, len(segmentIds))
+	for _, segmentId := range segmentIds {
+		value := fmt.Sprintf("(%d, %d)", userId, segmentId)
+		values = append(values, value)
+	}
+
+	resQuery := fmt.Sprintf("%s %s;", q, strings.Join(values, ", "))
+	_, err = tx.Exec(ctx, resQuery)
+	if e.IsDuplicateError(err) {
+		return &e.DuplicateSegmentError{}
+	}
+	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *repository) CreateAll(ctx context.Context, couriers []*Courier) error {
-	q := `INSERT INTO user (courier_type, regions, working_hours) VALUES %s`
-
-	values := make([]string, 0, 3)
-	params := make([]interface{}, 0, len(couriers))
-
-	for _, c := range couriers {
-		paramsLength := len(params)
-		rowValues := fmt.Sprintf("($%d, $%d, $%d)", paramsLength+1, paramsLength+2, paramsLength+3)
-		values = append(values, rowValues)
-		params = append(params, string(c.CourierType), c.Regions, c.WorkingHours)
-	}
-
-	q = fmt.Sprintf(q, strings.Join(values, ","))
-	_, err := r.client.Exec(ctx, q, params...)
-	return err
-}
-
-func (r *repository) FindAll(ctx context.Context) ([]Courier, error) {
-	q := `SELECT id, courier_type, regions, working_hours FROM user`
-	rows, err := r.client.Query(ctx, q)
+func delSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) error {
+	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	couriers := make([]Courier, 0, 50)
-
-	for rows.Next() {
-		var c Courier
-		err = rows.Scan(&c.Id, &c.CourierType, &c.Regions, &c.WorkingHours)
-		if err != nil {
-			return nil, err
-		}
-		couriers = append(couriers, c)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return couriers, nil
-}
-
-func (r *repository) FindOne(ctx context.Context, id int) (Courier, error) {
-	q := `SELECT id, courier_type, regions, working_hours FROM user WHERE id = $1`
-	var c Courier
-	if err := r.client.QueryRow(ctx, q, id).Scan(&c.Id, &c.CourierType, &c.Regions, &c.WorkingHours); err != nil {
-		return Courier{}, err
-	}
-	return c, nil
-}
-
-func (r *repository) FindByLimitAndOffset(ctx context.Context, l, o int) (c []Courier, err error) {
-	q := `SELECT id, courier_type, regions, working_hours FROM user ORDER BY id LIMIT $1 OFFSET $2`
-	rows, err := r.client.Query(ctx, q, l, o)
+	var segmentIdsArray pgtype.Int4Array
+	err = segmentIdsArray.Set(segmentIds)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	couriers := make([]Courier, 0, l)
+	q := `DELETE FROM user_segments WHERE user_id = $1 AND segment_id = ANY($2);`
+	_, err = tx.Exec(ctx, q, userId, &segmentIdsArray)
+	if err != nil {
+		return err
+	}
 
-	for rows.Next() {
-		var c Courier
-		err = rows.Scan(&c.Id, &c.CourierType, &c.Regions, &c.WorkingHours)
-		if err != nil {
-			return nil, err
+	return nil
+}
+
+func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto) error {
+	tx, err := r.client.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback(ctx)
+			panic(p)
+		} else if err != nil {
+			tx.Rollback(ctx)
+		} else {
+			err = tx.Commit(ctx)
 		}
-		couriers = append(couriers, c)
+	}()
+
+	if len(s.SegmentsAdd) > 0 {
+		if err = addSegments(ctx, s.UserId, s.SegmentsAdd, tx); err != nil {
+			return err
+		}
 	}
-	if err = rows.Err(); err != nil {
-		return nil, err
+	if len(s.SegmentsDel) > 0 {
+		if err = delSegments(ctx, s.UserId, s.SegmentsDel, tx); err != nil {
+			return err
+		}
 	}
 
-	return couriers, nil
+	return nil
 }
 
 func NewRepo(client pkg.DBClient) Repository {

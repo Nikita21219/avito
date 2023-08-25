@@ -1,8 +1,14 @@
 package user
 
-type Courier struct {
-	Id           int         `json:"id"`
-	CourierType  CourierType `json:"courier_type"`
-	Regions      []int       `json:"regions"`
-	WorkingHours []string    `json:"working_hours"`
+import "main/internal/segment"
+
+type Segments struct {
+	UserId   int                `json:"user_id"`
+	Segments []*segment.Segment `json:"segments"`
+}
+
+type SegmentsAddDel struct {
+	UserId      int      `json:"user_id"`
+	SegmentsAdd []string `json:"add"`
+	SegmentsDel []string `json:"delete"`
 }

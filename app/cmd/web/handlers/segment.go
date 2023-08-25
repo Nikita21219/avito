@@ -17,7 +17,7 @@ func createSegment(w http.ResponseWriter, r *http.Request, segmentRepo segment.R
 		return
 	}
 
-	err = segmentRepo.Create(ctx, &segment.Segment{Name: s.Name})
+	err = segmentRepo.Create(ctx, &segment.Segment{Slug: s.Slug})
 	var dse *e.DuplicateSegmentError
 	if errors.As(err, &dse) {
 		w.WriteHeader(http.StatusConflict)
@@ -37,7 +37,7 @@ func deleteSegment(w http.ResponseWriter, r *http.Request, segmentRepo segment.R
 		return
 	}
 
-	if err = segmentRepo.Delete(ctx, s.Name); err != nil {
+	if err = segmentRepo.Delete(ctx, s.Slug); err != nil {
 		log.Println("error to delete segment:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return

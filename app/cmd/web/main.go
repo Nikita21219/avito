@@ -9,6 +9,7 @@ import (
 	"main/cmd/web/handlers"
 	"main/internal/config"
 	"main/internal/segment"
+	"main/internal/user"
 	"main/pkg"
 	"net/http"
 	"os"
@@ -48,7 +49,7 @@ func main() {
 	//}
 
 	// Init repositories
-	//courierRepo := user.NewRepo(psqlClient)
+	userRepo := user.NewRepo(psqlClient)
 	segmentRepo := segment.NewRepo(psqlClient)
 
 	r := mux.NewRouter()
@@ -58,10 +59,10 @@ func main() {
 		handlers.Segments(segmentRepo)),
 	).Methods("POST", "DELETE")
 
-	//// Add user to segment and get active user segments
-	//r.HandleFunc("/segment/user", handlers.RateLimiter(
-	//	handlers.Couriers(courierRepo)),
-	//).Methods("POST", "GET")
+	// Add user to segment and get active user segments
+	r.HandleFunc("/segment/user", handlers.RateLimiter(
+		handlers.Users(userRepo)),
+	).Methods("POST", "GET")
 
 	// **************************************************************************************************
 
