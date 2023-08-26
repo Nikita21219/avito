@@ -15,6 +15,8 @@ type repository struct {
 	client pkg.DBClient
 }
 
+// FindByUserId is a method that retrieves segments associated with a user based on the provided user ID.
+// It takes a context and a user ID integer as parameters and returns a pointer to Segments and an error.
 func (r *repository) FindByUserId(ctx context.Context, userId int) (*Segments, error) {
 	q := `
 		SELECT us.segment_id, slug 
@@ -53,6 +55,9 @@ func (r *repository) FindByUserId(ctx context.Context, userId int) (*Segments, e
 	return us, nil
 }
 
+// getSegmentIdsBySlugs is a function that retrieves segment IDs based on the provided segment slugs.
+// It takes a context, a database transaction, and a slice of segment slugs as parameters.
+// It returns a slice of segment IDs and an error.
 func getSegmentIdsBySlugs(ctx context.Context, tx pgx.Tx, slugs []string) ([]int, error) {
 	q := `SELECT segment_id FROM segments WHERE slug = ANY($1);`
 	slugsArr := pgtype.TextArray{}
@@ -78,6 +83,8 @@ func getSegmentIdsBySlugs(ctx context.Context, tx pgx.Tx, slugs []string) ([]int
 	return segmentIds, nil
 }
 
+// addSegments is a function that adds the user to the specified segments.
+// It takes a context, a user ID, a slice of segment slugs, and a database transaction as parameters.
 func addSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) error {
 	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
@@ -103,6 +110,8 @@ func addSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) err
 	return nil
 }
 
+// delSegments is a function that deletes the specified segments from the user.
+// It takes a context, a user ID, a slice of segment slugs, and a database transaction as parameters.
 func delSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) error {
 	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
@@ -124,6 +133,11 @@ func delSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) err
 	return nil
 }
 
+// AddDelSegments is a method of the repository that adds and deletes segments for a user within a single transaction.
+// It takes a context and a SegmentsAddDelDto struct as parameters.
+// The SegmentsAddDelDto struct contains user ID, segments to add, and segments to delete.
+// This function calls the functions to add and delete segments for the user in a single transaction.
+// If an error occurs during the process, a rollback will be triggered.
 func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto) error {
 	tx, err := r.client.Begin(ctx)
 	if err != nil {

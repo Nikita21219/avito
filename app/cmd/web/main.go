@@ -54,12 +54,10 @@ func main() {
 
 	r := mux.NewRouter()
 
-	// Create and delete segment
 	r.HandleFunc("/segment", handlers.RateLimiter(
 		handlers.Segments(segmentRepo, redisClient)),
 	).Methods("POST", "DELETE")
 
-	// Add user to segment and get active user segments
 	r.HandleFunc("/segment/user", handlers.RateLimiter(
 		handlers.Users(userRepo, redisClient)),
 	).Methods("POST", "GET")
