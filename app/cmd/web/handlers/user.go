@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/redis/go-redis/v9"
 	"io"
 	"log"
+	"main/internal/cache"
 	"main/internal/e"
 	"main/internal/segment"
 	"main/internal/user"
@@ -15,8 +17,10 @@ import (
 )
 
 // getActiveSegments is a handler function responsible for retrieving the active segments of a user.
+// The function checks the data in redis.
+// If there is no necessary data or an error has occurred, then it makes a request to the database
 // It takes the HTTP response writer, HTTP request, and a user repository as parameters.
-func getActiveSegments(w http.ResponseWriter, r *http.Request, userRepo user.Repository) {
+func getActiveSegments(w http.ResponseWriter, r *http.Request, rdb *redis.Client, userRepo user.Repository) {
 	userId, ok := r.URL.Query()["id"]
 	if !ok || len(userId) != 1 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -29,14 +33,25 @@ func getActiveSegments(w http.ResponseWriter, r *http.Request, userRepo user.Rep
 	}
 
 	ctx := context.Background()
-	us, err := userRepo.FindByUserId(ctx, id)
+	var us user.Segments
+	redisKey := fmt.Sprintf("avito_user_%d", id)
+	err = cache.GetFromCache(ctx, rdb, redisKey, &us)
 	if err != nil {
-		var notFound *e.UserNotFoundError
-		if errors.As(err, &notFound) {
-			w.WriteHeader(http.StatusNoContent)
+		log.Println("error to retrive cache:", err)
+		u, err := userRepo.FindByUserId(ctx, id)
+		if err != nil {
+			var notFound *e.UserNotFoundError
+			if errors.As(err, &notFound) {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
+		us = *u
+	}
+	if us.UserId == 0 {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -48,16 +63,16 @@ func getActiveSegments(w http.ResponseWriter, r *http.Request, userRepo user.Rep
 		usDto.Segments = append(usDto.Segments, segment.SegmentDto{Slug: dto.Slug})
 	}
 
-	data, e := json.Marshal(usDto)
-	if e != nil {
-		log.Println("Error marshal data:", e)
+	data, err := json.Marshal(usDto)
+	if err != nil {
+		log.Println("Error marshal data:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, e = w.Write(data)
-	if e != nil {
-		log.Println("Error write data:", e)
+	_, err = w.Write(data)
+	if err != nil {
+		log.Println("Error write data:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -100,7 +115,7 @@ func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 func Users(userRepo user.Repository, rdb *redis.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
-			getActiveSegments(w, r, userRepo)
+			getActiveSegments(w, r, rdb, userRepo)
 		} else if r.Method == "POST" {
 			IdempotentKeyMiddleware(rdb, addDelSegment, userRepo)(w, r)
 		}

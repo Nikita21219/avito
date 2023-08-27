@@ -25,5 +25,5 @@ type UserNotFoundError struct {
 }
 
 func (e *UserNotFoundError) Error() string {
-	return fmt.Sprintf("user with id '%d' not found", e.UserId)
+	return fmt.Sprintf("user with id '%d' active segments not found", e.UserId)
 }

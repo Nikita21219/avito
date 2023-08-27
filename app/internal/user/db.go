@@ -15,6 +15,31 @@ type repository struct {
 	client pkg.DBClient
 }
 
+func (r *repository) FindAll(ctx context.Context) ([]*User, error) {
+	q := `SELECT user_id FROM user_segments;`
+	rows, err := r.client.Query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := make([]*User, 0)
+
+	for rows.Next() {
+		var u User
+		err = rows.Scan(&u.Id)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, &u)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
 // FindByUserId is a method that retrieves segments associated with a user based on the provided user ID.
 // It takes a context and a user ID integer as parameters and returns a pointer to Segments and an error.
 func (r *repository) FindByUserId(ctx context.Context, userId int) (*Segments, error) {

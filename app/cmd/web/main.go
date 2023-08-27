@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"log"
 	"main/cmd/web/handlers"
+	"main/internal/cache"
 	"main/internal/config"
 	"main/internal/segment"
 	"main/internal/user"
@@ -51,6 +52,9 @@ func main() {
 	// Init repositories
 	userRepo := user.NewRepo(psqlClient)
 	segmentRepo := segment.NewRepo(psqlClient)
+
+	ctx := context.Background()
+	cache.UpdateCache(ctx, redisClient, userRepo)
 
 	r := mux.NewRouter()
 
