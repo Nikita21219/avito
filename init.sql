@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS segments (
     slug varchar(255) NOT NULL UNIQUE
 );
 
-CREATE TABLE user_segments (
+CREATE TABLE IF NOT EXISTS user_segments (
    user_id INT,
    segment_id INT,
    FOREIGN KEY (user_id) REFERENCES users(user_id),

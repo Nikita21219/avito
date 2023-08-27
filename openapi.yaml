@@ -106,7 +106,7 @@ paths:
                   - slug: AVITO_PERFORMANCE_VAS
                   - slug: AVITO_DISCOUNT_30
         '204':
-          description: Пользователь не найден
+          description: Пользователь не найден или активных сегментов нет
         '400':
           description: Ошибка валидации параметров запроса
         '500':
