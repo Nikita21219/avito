@@ -13,12 +13,8 @@ type SegmentsAddDelDto struct {
 	SegmentsDel []string `json:"del"`
 }
 
-func (seg *SegmentsAddDelDto) ToModel() *Segments {
-	return nil
-}
-
 func (seg *SegmentsAddDelDto) Valid() bool {
-	if seg.UserId <= 0 {
+	if seg.UserId <= 0 || seg.SegmentsAdd == nil || seg.SegmentsDel == nil {
 		return false
 	}
 	for _, s := range seg.SegmentsAdd {

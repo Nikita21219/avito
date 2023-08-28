@@ -107,6 +107,11 @@ func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 	}
 
 	err = userRepo.AddDelSegments(ctx, seg)
+	var segmentsNotFoundError *e.SegmentsNotFoundError
+	if errors.As(err, &segmentsNotFoundError) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	checkErrors(w, err)
 }
 

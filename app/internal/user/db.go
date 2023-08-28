@@ -115,6 +115,9 @@ func addSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) err
 	if err != nil {
 		return err
 	}
+	if len(segmentIds) == 0 {
+		return &e.SegmentsNotFoundError{Slugs: slugs}
+	}
 
 	q := `INSERT INTO user_segments (user_id, segment_id) VALUES `
 
@@ -141,6 +144,9 @@ func delSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) err
 	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
 		return err
+	}
+	if len(segmentIds) == 0 {
+		return nil
 	}
 
 	var segmentIdsArray pgtype.Int4Array
@@ -189,7 +195,43 @@ func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto) e
 			return err
 		}
 	}
+	return nil
+}
 
+// TODO fill doc
+func (r *repository) CreateUser(ctx context.Context) (int, error) {
+	maxId, err := r.GetMaxId(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var userId int
+	q := `INSERT INTO users (user_id) VALUES ($1) RETURNING user_id;`
+	err = r.client.QueryRow(ctx, q, maxId+1).Scan(&userId)
+	if err != nil {
+		return 0, err
+	}
+	return userId, nil
+}
+
+// TODO fill doc
+func (r *repository) GetMaxId(ctx context.Context) (int, error) {
+	var userId int
+	q := `SELECT COALESCE(MAX(user_id), 0) FROM users;`
+	err := r.client.QueryRow(ctx, q).Scan(&userId)
+	if err != nil {
+		return 0, err
+	}
+	return userId, nil
+}
+
+// TODO fill doc
+func (r *repository) DelUser(ctx context.Context, userId int) error {
+	q := `DELETE FROM users WHERE user_id = ($1);`
+	_, err := r.client.Query(ctx, q, userId)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

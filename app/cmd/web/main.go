@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/mux"
-	"gopkg.in/yaml.v3"
 	"log"
 	"main/cmd/web/handlers"
 	"main/internal/cache"
@@ -12,28 +11,14 @@ import (
 	"main/internal/segment"
 	"main/internal/user"
 	"main/pkg"
+	"main/pkg/utils"
 	"net/http"
-	"os"
 )
 
 var cfg *config.Config
 
 func init() {
-	cfg = LoadConfig()
-}
-
-func LoadConfig() *config.Config {
-	confStream, err := os.ReadFile("./config/app.yaml")
-	if err != nil {
-		log.Fatalln("Error to open read config file:", err)
-	}
-
-	conf := config.NewConfig()
-	err = yaml.Unmarshal(confStream, conf)
-	if err != nil {
-		log.Fatalln("Error to unmarshal data from config file:", err)
-	}
-	return conf
+	cfg = utils.LoadConfig("./config/app.yaml")
 }
 
 func main() {
@@ -44,9 +29,9 @@ func main() {
 	}
 
 	// Create redis client
-	redisClient, e := pkg.NewRedisClient(context.Background(), cfg)
-	if e != nil {
-		log.Fatalln("Error create redis client:", e)
+	redisClient, err := pkg.NewRedisClient(context.Background(), cfg)
+	if err != nil {
+		log.Fatalln("Error create redis client:", err)
 	}
 
 	// Init repositories

@@ -27,3 +27,11 @@ type UserNotFoundError struct {
 func (e *UserNotFoundError) Error() string {
 	return fmt.Sprintf("user with id '%d' active segments not found", e.UserId)
 }
+
+type SegmentsNotFoundError struct {
+	Slugs []string
+}
+
+func (e *SegmentsNotFoundError) Error() string {
+	return fmt.Sprintf("segments not found: %s", e.Slugs)
+}

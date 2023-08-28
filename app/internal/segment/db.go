@@ -26,7 +26,10 @@ func (r *repository) Create(ctx context.Context, segment *Segment) error {
 func (r *repository) Delete(ctx context.Context, slug string) error {
 	q := `DELETE FROM segments WHERE slug = $1`
 	_, err := r.client.Exec(ctx, q, slug)
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func NewRepo(client pkg.DBClient) Repository {
