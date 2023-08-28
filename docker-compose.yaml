@@ -12,15 +12,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-#    volumes:
-#      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     container_name: avito_db
     networks:
       - avito_net
-    # TODO close ports before push solution
-    ports:
-      - "5433:5432"
 
   redis:
     image: redis:alpine3.17
@@ -33,31 +30,28 @@ services:
       retries: 3
     networks:
       - avito_net
-    # TODO close ports before push solution
-    ports:
-      - "6380:6379"
 
-#  app:
-#    container_name: app
-#    build:
-#      context: .
-#    ports:
-#      - "8080:8080"
-#    depends_on:
-#      db:
-#        condition: service_healthy
-#      redis:
-#        condition: service_healthy
-#    networks:
-#      - avito_net
+  app:
+    container_name: app
+    build:
+      context: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - avito_net
 
   swagger:
     image: swaggerapi/swagger-ui:v4.0.0-rc.1
     container_name: swagger
     ports:
       - "8081:8080"
-#    depends_on:
-#      - app
+    depends_on:
+      - app
     volumes:
       - ./openapi.yaml:/usr/share/nginx/html/openapi.yaml
     environment:

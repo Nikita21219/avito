@@ -1,19 +1,14 @@
 app:
-  # TODO change host to "app"
-  host: "localhost"
+  host: "app"
   port: "8080"
 
 db:
   user: "postgres"
-  # TODO change host to "db"
-  host: "localhost"
-  # TODO change port
-  port: "5433"
+  host: "db"
+  port: "5432"
   name: "avito"
   password: "password"
 
 redis:
-  # TODO change host to "redis"
-  host: "localhost"
-  # TODO change port
-  port: "6380"
+  host: "redis"
+  port: "6379"
