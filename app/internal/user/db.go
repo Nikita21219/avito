@@ -198,7 +198,8 @@ func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto) e
 	return nil
 }
 
-// TODO fill doc
+// CreateUser creates a new user record in the "users" table within the repository and returns the ID of the newly created row.
+// It takes a context.Context parameter for potential cancellation and timeout management.
 func (r *repository) CreateUser(ctx context.Context) (int, error) {
 	maxId, err := r.GetMaxId(ctx)
 	if err != nil {
@@ -214,7 +215,8 @@ func (r *repository) CreateUser(ctx context.Context) (int, error) {
 	return userId, nil
 }
 
-// TODO fill doc
+// GetMaxId retrieves the maximum user ID from the "users" table in the repository.
+// It takes a context.Context parameter for potential cancellation and timeout management.
 func (r *repository) GetMaxId(ctx context.Context) (int, error) {
 	var userId int
 	q := `SELECT COALESCE(MAX(user_id), 0) FROM users;`
@@ -225,7 +227,8 @@ func (r *repository) GetMaxId(ctx context.Context) (int, error) {
 	return userId, nil
 }
 
-// TODO fill doc
+// DelUser deletes a user with the specified userID from the repository.
+// This function is primarily intended for testing purposes, providing the ability to remove a user by their unique identifier.
 func (r *repository) DelUser(ctx context.Context, userId int) error {
 	q := `DELETE FROM users WHERE user_id = ($1);`
 	_, err := r.client.Query(ctx, q, userId)
