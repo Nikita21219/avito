@@ -146,11 +146,18 @@ paths:
                 user_id: 1
                 add: ["AVITO_VOICE_MESSAGES", "AVITO_DISCOUNT_30"]
                 del: ["AVITO_DISCOUNT_50"]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          description: Ключ идемпотентности, должен быть установлен на стороне фронтенда
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: Успешный запрос, операция выполнена успешно
         '400':
-          description: Ошибка валидации или отсутствие ключа идемпотентности
+          description: Ошибка валидации, либо отсутствие ключа идемпотентности, либо одного из сигмента не существует
         '409':
           description: Ключ идемпотентности уже был обработан либо пользователь уже входит в один из сегментов
         '500':
