@@ -3,12 +3,16 @@ package user
 import (
 	"context"
 	"fmt"
+	"github.com/go-co-op/gocron"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
+	"github.com/lib/pq"
+	"log"
 	"main/internal/e"
 	"main/internal/segment"
 	"main/pkg"
 	"strings"
+	"time"
 )
 
 type repository struct {
@@ -110,7 +114,7 @@ func getSegmentIdsBySlugs(ctx context.Context, tx pgx.Tx, slugs []string) ([]int
 
 // addSegments is a function that adds the user to the specified segments.
 // It takes a context, a user ID, a slice of segment slugs, and a database transaction as parameters.
-func addSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) error {
+func addSegments(ctx context.Context, userId int, slugs []string, ttlDays *int, tx pgx.Tx) error {
 	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
 		return err
@@ -119,11 +123,22 @@ func addSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) err
 		return &e.SegmentsNotFoundError{Slugs: slugs}
 	}
 
-	q := `INSERT INTO user_segments (user_id, segment_id) VALUES `
+	var aliveUntil pq.NullTime
+	if ttlDays != nil {
+		aliveUntil.Time = time.Now().AddDate(0, 0, *ttlDays)
+		aliveUntil.Valid = true
+	}
+
+	aliveUntilStr := "NULL"
+	if aliveUntil.Valid {
+		aliveUntilStr = fmt.Sprintf("'%s'", aliveUntil.Time.Format("2006-01-02"))
+	}
+
+	q := `INSERT INTO user_segments (user_id, segment_id, alive_until) VALUES `
 
 	values := make([]string, 0, len(segmentIds))
 	for _, segmentId := range segmentIds {
-		value := fmt.Sprintf("(%d, %d)", userId, segmentId)
+		value := fmt.Sprintf("(%d, %d, %s)", userId, segmentId, aliveUntilStr)
 		values = append(values, value)
 	}
 
@@ -186,7 +201,7 @@ func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto) e
 	}()
 
 	if len(s.SegmentsAdd) > 0 {
-		if err = addSegments(ctx, s.UserId, s.SegmentsAdd, tx); err != nil {
+		if err = addSegments(ctx, s.UserId, s.SegmentsAdd, s.TtlDays, tx); err != nil {
 			return err
 		}
 	}
@@ -236,6 +251,30 @@ func (r *repository) DelUser(ctx context.Context, userId int) error {
 		return err
 	}
 	return nil
+}
+
+// DeleteSegmentsEveryDay deletes users from segments when the current date
+// become greater than or equal to the user's lifetime (alive_until column)
+// within the segment.
+// The function is triggered every day at 03:00 AM in the Moscow time zone
+// when server load is at its lowest
+func (r *repository) DeleteSegmentsEveryDay(ctx context.Context) {
+	s := gocron.NewScheduler(time.UTC)
+	_, err := s.Every(1).Day().At("00:00").Do(func() error {
+		q := `DELETE FROM user_segments WHERE alive_until <= $1;`
+		_, err := r.client.Exec(ctx, q, time.Now())
+		if err != nil {
+			log.Println("error to delete rows:", err)
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Println("error delete segments every day:", err)
+	}
+
+	s.StartAsync()
 }
 
 func NewRepo(client pkg.DBClient) Repository {

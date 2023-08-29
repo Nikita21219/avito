@@ -39,6 +39,13 @@ func main() {
 	segmentRepo := segment.NewRepo(psqlClient)
 	cacheRepo := cache.NewRepo(redisClient)
 
+	// Launch cache update
+	ctx := context.Background()
+	cacheRepo.UpdateCache(ctx, userRepo)
+
+	// Launch delete user segments (ttl)
+	userRepo.DeleteSegmentsEveryDay(ctx)
+
 	r := mux.NewRouter()
 
 	r.HandleFunc("/segment", handlers.RateLimiter(

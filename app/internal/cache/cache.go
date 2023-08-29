@@ -78,7 +78,7 @@ func (r *repository) UpdateCache(ctx context.Context, userRepo user.Repository) 
 	})
 
 	if err != nil {
-		fmt.Println("error update cache:", err)
+		log.Println("error update cache:", err)
 	}
 	s.StartAsync()
 }

@@ -8,11 +8,12 @@ CREATE TABLE IF NOT EXISTS segments (
 );
 
 CREATE TABLE IF NOT EXISTS user_segments (
-   user_id INT,
-   segment_id INT,
-   FOREIGN KEY (user_id) REFERENCES users(user_id),
-   FOREIGN KEY (segment_id) REFERENCES segments(segment_id),
-   PRIMARY KEY (user_id, segment_id)
+    user_id INT,
+    segment_id INT,
+    alive_until TIMESTAMP NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (segment_id) REFERENCES segments(segment_id),
+    PRIMARY KEY (user_id, segment_id)
 );
 
 INSERT INTO users SELECT generate_series(1, 100);

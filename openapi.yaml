@@ -142,10 +142,14 @@ paths:
                   items:
                     type: string
                   description: Массив названий сегментов для удаления. Если список пуст, то удаления не произойдет
+                ttl_days:
+                  type: integer
+                  description: Время жизни пользователя в каждом из сегментов. Целое число - количество дней
               example:
                 user_id: 1
                 add: ["AVITO_VOICE_MESSAGES", "AVITO_DISCOUNT_30"]
                 del: ["AVITO_DISCOUNT_50"]
+                ttl_days: 5
       parameters:
         - name: Idempotency-Key
           in: header

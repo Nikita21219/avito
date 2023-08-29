@@ -10,4 +10,5 @@ type Repository interface {
 	CreateUser(ctx context.Context) (int, error)
 	DelUser(ctx context.Context, userId int) error
 	GetMaxId(ctx context.Context) (int, error)
+	DeleteSegmentsEveryDay(ctx context.Context)
 }

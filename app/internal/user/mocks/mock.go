@@ -78,6 +78,18 @@ func (mr *MockRepositoryMockRecorder) DelUser(ctx, userId interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DelUser", reflect.TypeOf((*MockRepository)(nil).DelUser), ctx, userId)
 }
 
+// DeleteSegmentsEveryDay mocks base method.
+func (m *MockRepository) DeleteSegmentsEveryDay(ctx context.Context) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DeleteSegmentsEveryDay", ctx)
+}
+
+// DeleteSegmentsEveryDay indicates an expected call of DeleteSegmentsEveryDay.
+func (mr *MockRepositoryMockRecorder) DeleteSegmentsEveryDay(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSegmentsEveryDay", reflect.TypeOf((*MockRepository)(nil).DeleteSegmentsEveryDay), ctx)
+}
+
 // FindAll mocks base method.
 func (m *MockRepository) FindAll(ctx context.Context) ([]*user.User, error) {
 	m.ctrl.T.Helper()
