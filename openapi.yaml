@@ -94,6 +94,7 @@ paths:
           required: true
           schema:
             type: integer
+          example: 1
       responses:
         '200':
           description: Успешный запрос, возвращается список сегментов пользователя
