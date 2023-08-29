@@ -37,18 +37,16 @@ func main() {
 	// Init repositories
 	userRepo := user.NewRepo(psqlClient)
 	segmentRepo := segment.NewRepo(psqlClient)
-
-	ctx := context.Background()
-	cache.UpdateCache(ctx, redisClient, userRepo)
+	cacheRepo := cache.NewRepo(redisClient)
 
 	r := mux.NewRouter()
 
 	r.HandleFunc("/segment", handlers.RateLimiter(
-		handlers.Segments(segmentRepo, redisClient)),
+		handlers.Segments(segmentRepo, cacheRepo)),
 	).Methods("POST", "DELETE")
 
 	r.HandleFunc("/segment/user", handlers.RateLimiter(
-		handlers.Users(userRepo, redisClient)),
+		handlers.Users(userRepo, cacheRepo)),
 	).Methods("POST", "GET")
 
 	http.Handle("/", r)

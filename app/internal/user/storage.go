@@ -2,6 +2,7 @@ package user
 
 import "context"
 
+//go:generate mockgen -source=storage.go -destination=mocks/mock.go
 type Repository interface {
 	FindAll(ctx context.Context) ([]*User, error)
 	FindByUserId(ctx context.Context, userId int) (*Segments, error)

@@ -6,41 +6,35 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"main/cmd/web/handlers"
+	redisRepoMock "main/internal/cache/mocks"
 	"main/internal/e"
 	"main/internal/segment"
+	segmentRepoMock "main/internal/segment/mocks"
 	"main/internal/user"
-	"main/pkg"
-	"main/pkg/utils"
+	userRepoMock "main/internal/user/mocks"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
+	"time"
 )
-
-func clearRedis(ctx context.Context, rdb *redis.Client) error {
-	return rdb.FlushAll(ctx).Err()
-}
 
 func uniqueKey() string {
 	return uuid.New().String()
 }
 
 func TestCreateSegmentsEndpoint(t *testing.T) {
-	cfg := utils.LoadConfig("../config/app.yaml")
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+
+	segmentRepo := segmentRepoMock.NewMockRepository(ctl)
+	cacheRepo := redisRepoMock.NewMockRepository(ctl)
+
 	ctx := context.Background()
-
-	rdb, err := pkg.NewRedisClient(ctx, cfg)
-	require.NoError(t, err)
-
-	psqlClient, err := pkg.NewPsqlClient(ctx, cfg)
-	require.NoError(t, err)
-
-	segmentRepo := segment.NewRepo(psqlClient)
 
 	testCases := []struct {
 		name           string
@@ -76,44 +70,50 @@ func TestCreateSegmentsEndpoint(t *testing.T) {
 
 	key := uniqueKey()
 	for _, tc := range testCases {
-		segmentRepo.Delete(ctx, tc.segmentName)
+		if tc.expectedStatus == http.StatusOK {
+			segmentRepo.EXPECT().Create(ctx, &segment.Segment{Slug: tc.segmentName})
+		}
+		cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
+		cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
+
 		body := fmt.Sprintf(`{"slug": "%s"}`, tc.segmentName)
 		req := httptest.NewRequest("POST", "/segment", bytes.NewBuffer([]byte(body)))
 		req.Header.Add("Idempotency-Key", key)
 		rr := httptest.NewRecorder()
-		handlers.Segments(segmentRepo, rdb)(rr, req)
+		handlers.Segments(segmentRepo, cacheRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
-		require.NoError(t, segmentRepo.Delete(ctx, tc.segmentName))
-		rdb.Del(ctx, key)
 	}
 
 	// Test wrong body
-	segmentRepo.Delete(ctx, "AVITO_DISCOUNT_50_test")
 	req := httptest.NewRequest(
 		"POST",
 		"/segment",
 		bytes.NewBuffer([]byte(`{"slag": "AVITO_DISCOUNT_50_test"}`)), // slag - bad request
 	)
-
+	cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
+	cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
 	req.Header.Add("Idempotency-Key", key)
 	rr := httptest.NewRecorder()
-	handlers.Segments(segmentRepo, rdb)(rr, req)
+	handlers.Segments(segmentRepo, cacheRepo)(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	// Test idempotent key already exists
 	req = httptest.NewRequest("POST", "/segment", bytes.NewBuffer([]byte(`{"slug": "AVITO"}`)))
+	cacheRepo.EXPECT().Exists(ctx, key).Return(int64(1), nil)
 	req.Header.Add("Idempotency-Key", key)
 	rr = httptest.NewRecorder()
-	handlers.Segments(segmentRepo, rdb)(rr, req)
+	handlers.Segments(segmentRepo, cacheRepo)(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	rdb.Del(ctx, key)
 
 	// Test segment already exists
-	segmentRepo.Delete(ctx, "AVITO_DISCOUNT_50_test")
-	req = httptest.NewRequest("POST", "/segment", bytes.NewBuffer([]byte(`{"slug": "AVITO_DISCOUNT_50_test"}`)))
-	req.Header.Add("Idempotency-Key", key)
-	handlers.Segments(segmentRepo, rdb)(httptest.NewRecorder(), req)
-	rdb.Del(ctx, key)
+	cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
+	cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
+	segmentRepo.EXPECT().Create(
+		ctx,
+		&segment.Segment{Slug: "AVITO_DISCOUNT_50_test"},
+	).Return(
+		&e.DuplicateSegmentError{SegmentName: "AVITO_DISCOUNT_50_test"},
+	)
 
 	req = httptest.NewRequest(
 		"POST",
@@ -122,23 +122,18 @@ func TestCreateSegmentsEndpoint(t *testing.T) {
 	)
 	req.Header.Add("Idempotency-Key", key)
 	rr = httptest.NewRecorder()
-	handlers.Segments(segmentRepo, rdb)(rr, req)
+	handlers.Segments(segmentRepo, cacheRepo)(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	segmentRepo.Delete(ctx, "AVITO_DISCOUNT_50_test")
-	rdb.Del(ctx, key)
 }
 
 func TestDeleteSegmentsEndpoint(t *testing.T) {
-	cfg := utils.LoadConfig("../config/app.yaml")
 	ctx := context.Background()
 
-	rdb, err := pkg.NewRedisClient(ctx, cfg)
-	require.NoError(t, err)
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
 
-	psqlClient, err := pkg.NewPsqlClient(ctx, cfg)
-	require.NoError(t, err)
-
-	segmentRepo := segment.NewRepo(psqlClient)
+	segmentRepo := segmentRepoMock.NewMockRepository(ctl)
+	cacheRepo := redisRepoMock.NewMockRepository(ctl)
 
 	key := uniqueKey()
 	testCases := []struct {
@@ -174,18 +169,24 @@ func TestDeleteSegmentsEndpoint(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		segmentRepo.Create(ctx, &segment.Segment{Slug: tc.segmentName})
+		cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
+		cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
+		if tc.expectedStatus == http.StatusOK {
+			segmentRepo.EXPECT().Delete(ctx, tc.segmentName).Return(nil)
+		}
+
 		body := fmt.Sprintf(`{"slug": "%s"}`, tc.segmentName)
 		req := httptest.NewRequest("DELETE", "/segment", bytes.NewBuffer([]byte(body)))
 		req.Header.Add("Idempotency-Key", key)
 		rr := httptest.NewRecorder()
-		handlers.Segments(segmentRepo, rdb)(rr, req)
-		rdb.Del(ctx, key)
+		handlers.Segments(segmentRepo, cacheRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
-		require.NoError(t, segmentRepo.Delete(ctx, tc.segmentName))
 	}
 
 	// Test wrong body
+	cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
+	cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
+
 	req := httptest.NewRequest(
 		"DELETE",
 		"/segment",
@@ -193,10 +194,12 @@ func TestDeleteSegmentsEndpoint(t *testing.T) {
 	)
 	req.Header.Add("Idempotency-Key", key)
 	rr := httptest.NewRecorder()
-	handlers.Segments(segmentRepo, rdb)(rr, req)
+	handlers.Segments(segmentRepo, cacheRepo)(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	// Test Idempotency-Key already exists
+	cacheRepo.EXPECT().Exists(ctx, key).Return(int64(1), nil)
+
 	req = httptest.NewRequest(
 		"DELETE",
 		"/segment",
@@ -204,23 +207,17 @@ func TestDeleteSegmentsEndpoint(t *testing.T) {
 	)
 	req.Header.Add("Idempotency-Key", key)
 	rr = httptest.NewRecorder()
-	handlers.Segments(segmentRepo, rdb)(rr, req)
-	rdb.Del(ctx, key)
+	handlers.Segments(segmentRepo, cacheRepo)(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
 func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
-	cfg := utils.LoadConfig("../config/app.yaml")
 	ctx := context.Background()
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
 
-	rdb, err := pkg.NewRedisClient(ctx, cfg)
-	require.NoError(t, err)
-
-	psqlClient, err := pkg.NewPsqlClient(ctx, cfg)
-	require.NoError(t, err)
-
-	userRepo := user.NewRepo(psqlClient)
-	segmentRepo := segment.NewRepo(psqlClient)
+	userRepo := userRepoMock.NewMockRepository(ctl)
+	cacheRepo := redisRepoMock.NewMockRepository(ctl)
 
 	testCases := []struct {
 		name           string
@@ -237,63 +234,28 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			segmentsAdd:    []string{"AVITO_VOICE_MESSAGES_TEST"},
 		},
-		{
-			name:           "active_segments_not_found",
-			expectedStatus: http.StatusNoContent,
-			segmentsAdd:    []string{},
-		},
 	}
 
+	userId := 1
 	for _, tc := range testCases {
-		userId, err := userRepo.CreateUser(ctx)
-		for _, slug := range tc.segmentsAdd {
-			err = segmentRepo.Create(ctx, &segment.Segment{Slug: slug})
-			var duplicate *e.DuplicateSegmentError
-			if err != nil && !errors.As(err, &duplicate) {
-				t.Errorf("error: %s", err)
-			}
-		}
-
-		err = userRepo.AddDelSegments(ctx, &user.SegmentsAddDelDto{
-			UserId:      userId,
-			SegmentsAdd: tc.segmentsAdd,
+		cacheRepo.EXPECT().GetFromCache(
+			ctx,
+			fmt.Sprintf("avito_user_%d", userId),
+			gomock.Any(),
+		).DoAndReturn(func(ctx context.Context, key string, result interface{}) error {
+			segments := user.Segments{UserId: userId, Segments: []*segment.Segment{
+				{Id: 1, Slug: "test"},
+			}}
+			*result.(*user.Segments) = segments
+			return nil
 		})
-		if err != nil && !e.IsDuplicateError(err) {
-			t.Errorf("error: %s", err)
-		}
 
 		req := httptest.NewRequest("GET", "/segment/user", nil)
 		req.URL.RawQuery = fmt.Sprintf("id=%d", userId)
 		rr := httptest.NewRecorder()
-		handlers.Users(userRepo, rdb)(rr, req)
+		handlers.Users(userRepo, cacheRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
-		require.NoError(t, userRepo.DelUser(ctx, userId))
-		if tc.expectedStatus != 200 {
-			continue
-		}
-
-		var s user.SegmentsDto
-		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &s))
-
-		segmentsAddOut := make([]string, 0, len(s.Segments))
-		for _, seg := range s.Segments {
-			segmentsAddOut = append(segmentsAddOut, seg.Slug)
-		}
-		assert.Equal(t, tc.segmentsAdd, segmentsAddOut)
-		assert.Equal(t, userId, s.UserId)
-
-		require.NoError(t, userRepo.AddDelSegments(ctx, &user.SegmentsAddDelDto{
-			UserId:      userId,
-			SegmentsDel: tc.segmentsAdd,
-		}))
-		for _, seg := range segmentsAddOut {
-			require.NoError(t, segmentRepo.Delete(ctx, seg))
-		}
-		require.NoError(t, userRepo.DelUser(ctx, userId))
 	}
-
-	maxId, err := userRepo.GetMaxId(ctx)
-	require.NoError(t, err)
 
 	testCases2 := []struct {
 		name           string
@@ -315,43 +277,34 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			userId:         "hello",
 		},
-		{
-			name:           "user_id_ascii",
-			expectedStatus: http.StatusNoContent,
-			userId:         strconv.Itoa(maxId + 1),
-		},
 	}
 
 	for _, tc := range testCases2 {
 		req := httptest.NewRequest("GET", "/segment/user", nil)
 		req.URL.RawQuery = "id=" + tc.userId
 		rr := httptest.NewRecorder()
-		handlers.Users(userRepo, rdb)(rr, req)
+		handlers.Users(userRepo, cacheRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
 	}
-}
 
-func notInArr(search string, arr []string) bool {
-	for _, el := range arr {
-		if el == search {
-			return false
-		}
-	}
-	return true
+	// Test user id not found
+	cacheRepo.EXPECT().GetFromCache(ctx, fmt.Sprintf("avito_user_%d", userId), gomock.Any()).Return(errors.New("redis: nil"))
+	userRepo.EXPECT().FindByUserId(ctx, userId).Return(nil, &e.UserNotFoundError{UserId: userId})
+
+	req := httptest.NewRequest("GET", "/segment/user", nil)
+	req.URL.RawQuery = "id=1"
+	rr := httptest.NewRecorder()
+	handlers.Users(userRepo, cacheRepo)(rr, req)
+	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
 func TestAddDelSegmentsEndpoint(t *testing.T) {
-	cfg := utils.LoadConfig("../config/app.yaml")
 	ctx := context.Background()
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
 
-	rdb, err := pkg.NewRedisClient(ctx, cfg)
-	require.NoError(t, err)
-
-	psqlClient, err := pkg.NewPsqlClient(ctx, cfg)
-	require.NoError(t, err)
-
-	userRepo := user.NewRepo(psqlClient)
-	segmentRepo := segment.NewRepo(psqlClient)
+	userRepo := userRepoMock.NewMockRepository(ctl)
+	cacheRepo := redisRepoMock.NewMockRepository(ctl)
 
 	testCasesErr := []struct {
 		name           string
@@ -402,24 +355,15 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 
 	key := uniqueKey()
 	for _, tc := range testCasesErr {
+		cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
+		cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
+
 		req := httptest.NewRequest("POST", "/segment/user", bytes.NewBuffer([]byte(tc.body)))
 		req.Header.Add("Idempotency-Key", key)
 		rr := httptest.NewRecorder()
-		handlers.Users(userRepo, rdb)(rr, req)
-		rdb.Del(ctx, key)
+		handlers.Users(userRepo, cacheRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
 	}
-
-	// Test idempotent key already processed
-	_, err = rdb.Set(ctx, key, "", 0).Result()
-	require.NoError(t, err)
-
-	req := httptest.NewRequest("POST", "/segment/user", bytes.NewBuffer([]byte(`{}`)))
-	req.Header.Add("Idempotency-Key", key)
-	rr := httptest.NewRecorder()
-	handlers.Users(userRepo, rdb)(rr, req)
-	rdb.Del(ctx, key)
-	assert.Equal(t, http.StatusConflict, rr.Code)
 
 	testCasesOk := []struct {
 		name           string
@@ -442,47 +386,32 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 	}
 
 	for _, tc := range testCasesOk {
-		userId, err := userRepo.CreateUser(ctx)
-		require.NoError(t, err)
-
-		for _, slug := range tc.add {
-			err = segmentRepo.Create(ctx, &segment.Segment{Slug: slug})
-			if e.IsDuplicateError(err) {
-				continue
-			}
-		}
-
-		segmentsAddDelDto := user.SegmentsAddDelDto{
+		userId := 1
+		cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
+		cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
+		s := user.SegmentsAddDelDto{
 			UserId:      userId,
 			SegmentsAdd: tc.add,
 			SegmentsDel: tc.del,
 		}
-		body, err := json.Marshal(segmentsAddDelDto)
+
+		userRepo.EXPECT().AddDelSegments(ctx, &s)
+
+		body, err := json.Marshal(s)
 		require.NoError(t, err)
 
-		req = httptest.NewRequest("POST", "/segment/user", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/segment/user", bytes.NewBuffer(body))
 		req.Header.Add("Idempotency-Key", key)
-		rr = httptest.NewRecorder()
-		handlers.Users(userRepo, rdb)(rr, req)
-		rdb.Del(ctx, key)
+		rr := httptest.NewRecorder()
+		handlers.Users(userRepo, cacheRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
-
-		segments, err := userRepo.FindByUserId(ctx, userId)
-		require.NoError(t, err)
-		for _, seg := range segments.Segments {
-			if notInArr(seg.Slug, tc.add) {
-				t.Errorf("segment not found when reqiered")
-			}
-		}
-
-		require.NoError(t, userRepo.AddDelSegments(ctx, &user.SegmentsAddDelDto{
-			UserId:      userId,
-			SegmentsDel: tc.add,
-		}))
-
-		for _, slug := range tc.add {
-			require.NoError(t, segmentRepo.Delete(ctx, slug))
-		}
-		require.NoError(t, userRepo.DelUser(ctx, userId))
 	}
+
+	// Test idempotent key already processed
+	cacheRepo.EXPECT().Exists(ctx, key).Return(int64(1), nil)
+	req := httptest.NewRequest("POST", "/segment/user", bytes.NewBuffer([]byte(`{}`)))
+	req.Header.Add("Idempotency-Key", key)
+	rr := httptest.NewRecorder()
+	handlers.Users(userRepo, cacheRepo)(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+//go:generate mockgen -source=redis.go -destination=mocks/mock.go
 func NewRedisClient(ctx context.Context, cfg *config.Config) (*redis.Client, error) {
 	var rdb *redis.Client
 

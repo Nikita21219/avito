@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"io"
 	"log"
 	"main/internal/cache"
@@ -20,7 +19,7 @@ import (
 // The function checks the data in redis.
 // If there is no necessary data or an error has occurred, then it makes a request to the database
 // It takes the HTTP response writer, HTTP request, and a user repository as parameters.
-func getActiveSegments(w http.ResponseWriter, r *http.Request, rdb *redis.Client, userRepo user.Repository) {
+func getActiveSegments(w http.ResponseWriter, r *http.Request, rdb cache.Repository, userRepo user.Repository) {
 	userId, ok := r.URL.Query()["id"]
 	if !ok || len(userId) != 1 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -35,7 +34,7 @@ func getActiveSegments(w http.ResponseWriter, r *http.Request, rdb *redis.Client
 	ctx := context.Background()
 	var us user.Segments
 	redisKey := fmt.Sprintf("avito_user_%d", id)
-	err = cache.GetFromCache(ctx, rdb, redisKey, &us)
+	err = rdb.GetFromCache(ctx, redisKey, &us)
 	if err != nil {
 		log.Println("error to retrive cache:", err)
 		u, err := userRepo.FindByUserId(ctx, id)
@@ -117,7 +116,7 @@ func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 
 // Users is a handler function that checks the request method and calls the appropriate handler.
 // It takes the user repository and Redis client as parameters.
-func Users(userRepo user.Repository, rdb *redis.Client) http.HandlerFunc {
+func Users(userRepo user.Repository, rdb cache.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			getActiveSegments(w, r, rdb, userRepo)

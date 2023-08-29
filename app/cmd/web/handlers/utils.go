@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 	"io"
 	"log"
+	"main/internal/cache"
 	"main/internal/e"
 	"main/internal/segment"
 	"net/http"
@@ -20,7 +20,7 @@ type NextHandler func(w http.ResponseWriter, r *http.Request, repo interface{})
 // IdempotentKeyMiddleware is a middleware function that checks the idempotency key in Redis
 // before invoking the next handler function. It takes a Redis client, the next handler function,
 // and a repository interface as parameters and returns a new handler function.
-func IdempotentKeyMiddleware(rdb *redis.Client, next NextHandler, repo interface{}) http.HandlerFunc {
+func IdempotentKeyMiddleware(rdb cache.Repository, next NextHandler, repo interface{}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idempotentKey := r.Header.Get("Idempotency-Key")
 		if idempotentKey == "" {
@@ -30,7 +30,7 @@ func IdempotentKeyMiddleware(rdb *redis.Client, next NextHandler, repo interface
 		}
 
 		ctx := context.Background()
-		val, err := rdb.Exists(ctx, idempotentKey).Result()
+		val, err := rdb.Exists(ctx, idempotentKey)
 		if err != nil {
 			log.Println("error check idempotent key:", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -43,8 +43,7 @@ func IdempotentKeyMiddleware(rdb *redis.Client, next NextHandler, repo interface
 			return
 		}
 
-		status := rdb.Set(ctx, idempotentKey, true, 60*60*time.Second)
-		log.Println("Redis set Idempotency-Key status:", status)
+		rdb.Set(ctx, idempotentKey, true, 60*time.Minute)
 		next(w, r, repo)
 	}
 }

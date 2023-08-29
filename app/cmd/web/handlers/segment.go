@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"context"
-	"github.com/redis/go-redis/v9"
 	"log"
+	"main/internal/cache"
 	"main/internal/segment"
 	"net/http"
 )
@@ -51,7 +51,7 @@ func deleteSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 
 // Segments is a handler function that checks the request method and calls the appropriate handler.
 // It takes the segment repository and Redis client as parameters.
-func Segments(segmentRepo segment.Repository, rdb *redis.Client) http.HandlerFunc {
+func Segments(segmentRepo segment.Repository, rdb cache.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			IdempotentKeyMiddleware(rdb, createSegment, segmentRepo)(w, r)
