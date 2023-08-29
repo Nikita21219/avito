@@ -105,6 +105,13 @@ func TestCreateSegmentsEndpoint(t *testing.T) {
 	handlers.Segments(segmentRepo, cacheRepo)(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
 
+	// Test idempotent key empty
+	req = httptest.NewRequest("POST", "/segment", bytes.NewBuffer([]byte(`{"slug": "AVITO"}`)))
+	req.Header.Add("Idempotency-Key", "")
+	rr = httptest.NewRecorder()
+	handlers.Segments(segmentRepo, cacheRepo)(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
 	// Test segment already exists
 	cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
 	cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
@@ -268,6 +275,11 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 			userId:         "0",
 		},
 		{
+			name:           "user_id_several",
+			expectedStatus: http.StatusBadRequest,
+			userId:         "50;100",
+		},
+		{
 			name:           "user_id_negative",
 			expectedStatus: http.StatusBadRequest,
 			userId:         "-32",
@@ -287,13 +299,23 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 		assert.Equal(t, tc.expectedStatus, rr.Code)
 	}
 
-	// Test user id not found
+	// Test user id not found redis
 	cacheRepo.EXPECT().GetFromCache(ctx, fmt.Sprintf("avito_user_%d", userId), gomock.Any()).Return(errors.New("redis: nil"))
 	userRepo.EXPECT().FindByUserId(ctx, userId).Return(nil, &e.UserNotFoundError{UserId: userId})
 
 	req := httptest.NewRequest("GET", "/segment/user", nil)
 	req.URL.RawQuery = "id=1"
 	rr := httptest.NewRecorder()
+	handlers.Users(userRepo, cacheRepo)(rr, req)
+	assert.Equal(t, http.StatusNoContent, rr.Code)
+
+	// Test user id not found DB
+	cacheRepo.EXPECT().GetFromCache(ctx, fmt.Sprintf("avito_user_%d", userId), gomock.Any()).Return(errors.New("redis: nil"))
+	userRepo.EXPECT().FindByUserId(ctx, userId).Return(&user.Segments{UserId: 0, Segments: make([]*segment.Segment, 0)}, nil)
+
+	req = httptest.NewRequest("GET", "/segment/user", nil)
+	req.URL.RawQuery = "id=1"
+	rr = httptest.NewRecorder()
 	handlers.Users(userRepo, cacheRepo)(rr, req)
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
@@ -414,4 +436,24 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handlers.Users(userRepo, cacheRepo)(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+func TestRateLimiter(t *testing.T) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rr := httptest.NewRecorder()
+	limiterMiddleware := handlers.RateLimiter(handler)
+
+	for i := 0; i < 10; i++ {
+		limiterMiddleware.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		rr = httptest.NewRecorder()
+		time.Sleep(time.Millisecond)
+	}
+
+	limiterMiddleware.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 }
