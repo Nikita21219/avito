@@ -9,7 +9,7 @@ docker-compose up -d --build
 ```
 Test coverage:
 ``` bash
-go test -coverpkg=./cmd/web/handlers/... -coverprofile=coverage.out ./tests -coverprofile=coverage.out ./... && go tool cover -html=coverage.out && rm coverage.out
+cd app; go test -coverpkg=./cmd/web/handlers/... -coverprofile=coverage.out ./tests -coverprofile=coverage.out ./... && go tool cover -html=coverage.out && rm coverage.out
 ```
 
 ## Сервисы докер
