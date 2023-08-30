@@ -4,13 +4,14 @@ import (
 	"context"
 	"log"
 	"main/internal/cache"
+	"main/internal/history"
 	"main/internal/segment"
 	"net/http"
 )
 
 // createSegment is a handler function responsible for creating a segment.
 // It takes the HTTP response writer, HTTP request, and a repository interface as parameters.
-func createSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
+func createSegment(w http.ResponseWriter, r *http.Request, repo interface{}, historyRepo history.Repository) {
 	segmentRepo, ok := repo.(segment.Repository)
 	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -29,7 +30,7 @@ func createSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 
 // deleteSegment is a handler function responsible for deleting a segment.
 // It takes the HTTP response writer, HTTP request, and a repository interface as parameters.
-func deleteSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
+func deleteSegment(w http.ResponseWriter, r *http.Request, repo interface{}, historyRepo history.Repository) {
 	segmentRepo, ok := repo.(segment.Repository)
 	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -54,9 +55,9 @@ func deleteSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 func Segments(segmentRepo segment.Repository, rdb cache.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
-			IdempotentKeyMiddleware(rdb, createSegment, segmentRepo)(w, r)
+			IdempotentKeyMiddleware(rdb, createSegment, segmentRepo, nil)(w, r)
 		} else if r.Method == "DELETE" {
-			IdempotentKeyMiddleware(rdb, deleteSegment, segmentRepo)(w, r)
+			IdempotentKeyMiddleware(rdb, deleteSegment, segmentRepo, nil)(w, r)
 		}
 	}
 }

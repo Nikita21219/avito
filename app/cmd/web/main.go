@@ -8,6 +8,7 @@ import (
 	"main/cmd/web/handlers"
 	"main/internal/cache"
 	"main/internal/config"
+	"main/internal/history"
 	"main/internal/segment"
 	"main/internal/user"
 	"main/pkg"
@@ -34,17 +35,20 @@ func main() {
 		log.Fatalln("Error create redis client:", err)
 	}
 
+	//reportcsv.CreateReport()
+
 	// Init repositories
 	userRepo := user.NewRepo(psqlClient)
 	segmentRepo := segment.NewRepo(psqlClient)
 	cacheRepo := cache.NewRepo(redisClient)
+	historyRepo := history.NewRepo(psqlClient)
 
 	// Launch cache update
 	ctx := context.Background()
 	cacheRepo.UpdateCache(ctx, userRepo)
 
 	// Launch delete user segments (ttl)
-	userRepo.DeleteSegmentsEveryDay(ctx)
+	userRepo.DeleteSegmentsEveryDay(ctx, historyRepo)
 
 	r := mux.NewRouter()
 
@@ -53,7 +57,7 @@ func main() {
 	).Methods("POST", "DELETE")
 
 	r.HandleFunc("/segment/user", handlers.RateLimiter(
-		handlers.Users(userRepo, cacheRepo)),
+		handlers.Users(userRepo, cacheRepo, historyRepo)),
 	).Methods("POST", "GET")
 
 	http.Handle("/", r)

@@ -9,6 +9,7 @@ import (
 	"github.com/lib/pq"
 	"log"
 	"main/internal/e"
+	"main/internal/history"
 	"main/internal/segment"
 	"main/pkg"
 	"strings"
@@ -60,7 +61,6 @@ func (r *repository) FindByUserId(ctx context.Context, userId int) (*Segments, e
 	defer rows.Close()
 
 	segments := make([]*segment.Segment, 0)
-
 	for rows.Next() {
 		var s segment.Segment
 		err = rows.Scan(&s.Id, &s.Slug)
@@ -114,7 +114,7 @@ func getSegmentIdsBySlugs(ctx context.Context, tx pgx.Tx, slugs []string) ([]int
 
 // addSegments is a function that adds the user to the specified segments.
 // It takes a context, a user ID, a slice of segment slugs, and a database transaction as parameters.
-func addSegments(ctx context.Context, userId int, slugs []string, ttlDays *int, tx pgx.Tx) error {
+func addSegments(ctx context.Context, userId int, slugs []string, ttlDays *int, historyRepo history.Repository, tx pgx.Tx) error {
 	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
 		return err
@@ -150,12 +150,25 @@ func addSegments(ctx context.Context, userId int, slugs []string, ttlDays *int, 
 	if err != nil {
 		return err
 	}
+
+	h := history.History{
+		UserId:     userId,
+		SegmentIds: segmentIds,
+		Operation:  "added",
+		Date:       time.Now(),
+	}
+
+	if err = historyRepo.Create(ctx, &h, tx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // delSegments is a function that deletes the specified segments from the user.
 // It takes a context, a user ID, a slice of segment slugs, and a database transaction as parameters.
-func delSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) error {
+// TODO fix doc (added new param)
+func delSegments(ctx context.Context, userId int, slugs []string, historyRepo history.Repository, tx pgx.Tx) error {
 	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
 		return err
@@ -170,9 +183,32 @@ func delSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) err
 		return err
 	}
 
-	q := `DELETE FROM user_segments WHERE user_id = $1 AND segment_id = ANY($2);`
-	_, err = tx.Exec(ctx, q, userId, &segmentIdsArray)
+	q := `DELETE FROM user_segments WHERE user_id = $1 AND segment_id = ANY($2) RETURNING segment_id;`
+	rows, err := tx.Query(ctx, q, userId, &segmentIdsArray)
 	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	deletedSegmentIds := make([]int, 0)
+	for rows.Next() {
+		var deletedId int
+		if err = rows.Scan(&deletedId); err != nil {
+			return err
+		}
+		deletedSegmentIds = append(deletedSegmentIds, deletedId)
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
+	h := history.History{
+		UserId:     userId,
+		SegmentIds: deletedSegmentIds,
+		Operation:  "deleted",
+		Date:       time.Now(),
+	}
+
+	if err = historyRepo.Create(ctx, &h, tx); err != nil {
 		return err
 	}
 
@@ -184,7 +220,7 @@ func delSegments(ctx context.Context, userId int, slugs []string, tx pgx.Tx) err
 // The SegmentsAddDelDto struct contains user ID, segments to add, and segments to delete.
 // This function calls the functions to add and delete segments for the user in a single transaction.
 // If an error occurs during the process, a rollback will be triggered.
-func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto) error {
+func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto, historyRepo history.Repository) error {
 	tx, err := r.client.Begin(ctx)
 	if err != nil {
 		return err
@@ -201,12 +237,12 @@ func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto) e
 	}()
 
 	if len(s.SegmentsAdd) > 0 {
-		if err = addSegments(ctx, s.UserId, s.SegmentsAdd, s.TtlDays, tx); err != nil {
+		if err = addSegments(ctx, s.UserId, s.SegmentsAdd, s.TtlDays, historyRepo, tx); err != nil {
 			return err
 		}
 	}
 	if len(s.SegmentsDel) > 0 {
-		if err = delSegments(ctx, s.UserId, s.SegmentsDel, tx); err != nil {
+		if err = delSegments(ctx, s.UserId, s.SegmentsDel, historyRepo, tx); err != nil {
 			return err
 		}
 	}
@@ -258,15 +294,64 @@ func (r *repository) DelUser(ctx context.Context, userId int) error {
 // within the segment.
 // The function is triggered every day at 03:00 AM in the Moscow time zone
 // when server load is at its lowest
-func (r *repository) DeleteSegmentsEveryDay(ctx context.Context) {
+// TODO fix doc (added new param)
+func (r *repository) DeleteSegmentsEveryDay(ctx context.Context, historyRepo history.Repository) {
 	s := gocron.NewScheduler(time.UTC)
-	_, err := s.Every(1).Day().At("00:00").Do(func() error {
-		q := `DELETE FROM user_segments WHERE alive_until <= $1;`
-		_, err := r.client.Exec(ctx, q, time.Now())
+	//_, err := s.Every(1).Day().At("00:00").Do(func() error { // TODO uncomment me
+	_, err := s.Every(1).Seconds().Do(func() error { // TODO del me
+
+		fmt.Println("gocron working...")
+
+		tx, err := r.client.Begin(ctx)
 		if err != nil {
-			log.Println("error to delete rows:", err)
 			return err
 		}
+		defer func() {
+			if p := recover(); p != nil {
+				tx.Rollback(ctx)
+				panic(p)
+			} else if err != nil {
+				tx.Rollback(ctx)
+			} else {
+				err = tx.Commit(ctx)
+			}
+		}()
+
+		// key: userId, value: slice of segmentIds witch deleted
+		h := make(map[int][]int)
+
+		q := `DELETE FROM user_segments WHERE alive_until <= $1 RETURNING user_id, segment_id;`
+		rows, err := tx.Query(ctx, q, time.Now())
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var userId, segmentId int
+			if err = rows.Scan(&userId, &segmentId); err != nil {
+				return err
+			}
+			h[userId] = append(h[userId], segmentId)
+		}
+		if err = rows.Err(); err != nil {
+			return err
+		}
+
+		// Add rows to history
+		now := time.Now()
+		for userId, segmentIds := range h {
+			h := history.History{
+				UserId:     userId,
+				SegmentIds: segmentIds,
+				Operation:  "deleted",
+				Date:       now,
+			}
+			if err = historyRepo.Create(ctx, &h, tx); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 

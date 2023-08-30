@@ -10,17 +10,19 @@ import (
 	"log"
 	"main/internal/cache"
 	"main/internal/e"
+	"main/internal/history"
 	"main/internal/segment"
 	"net/http"
 	"time"
 )
 
-type NextHandler func(w http.ResponseWriter, r *http.Request, repo interface{})
+type NextHandler func(w http.ResponseWriter, r *http.Request, repo interface{}, historyRepo history.Repository)
 
 // IdempotentKeyMiddleware is a middleware function that checks the idempotency key in Redis
 // before invoking the next handler function. It takes a Redis client, the next handler function,
 // and a repository interface as parameters and returns a new handler function.
-func IdempotentKeyMiddleware(rdb cache.Repository, next NextHandler, repo interface{}) http.HandlerFunc {
+// TODO fix doc (added new param)
+func IdempotentKeyMiddleware(rdb cache.Repository, next NextHandler, repo interface{}, historyRepo history.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idempotentKey := r.Header.Get("Idempotency-Key")
 		if idempotentKey == "" {
@@ -44,7 +46,7 @@ func IdempotentKeyMiddleware(rdb cache.Repository, next NextHandler, repo interf
 		}
 
 		rdb.Set(ctx, idempotentKey, true, 60*time.Minute)
-		next(w, r, repo)
+		next(w, r, repo, historyRepo)
 	}
 }
 
@@ -79,7 +81,7 @@ func checkErrors(w http.ResponseWriter, err error) {
 		w.WriteHeader(http.StatusConflict)
 		return
 	} else if err != nil {
-		log.Println("error to create segment:", err)
+		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

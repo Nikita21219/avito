@@ -9,6 +9,7 @@ import (
 	"log"
 	"main/internal/cache"
 	"main/internal/e"
+	"main/internal/history"
 	"main/internal/segment"
 	"main/internal/user"
 	"net/http"
@@ -79,7 +80,7 @@ func getActiveSegments(w http.ResponseWriter, r *http.Request, rdb cache.Reposit
 
 // addDelSegment is a handler function responsible for adding and deleting user segments.
 // It takes the HTTP response writer, HTTP request, and a repository interface as parameters.
-func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
+func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}, historyRepo history.Repository) {
 	userRepo, ok := repo.(user.Repository)
 	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -105,7 +106,7 @@ func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 		return
 	}
 
-	err = userRepo.AddDelSegments(ctx, seg)
+	err = userRepo.AddDelSegments(ctx, seg, historyRepo)
 	var segmentsNotFoundError *e.SegmentsNotFoundError
 	if errors.As(err, &segmentsNotFoundError) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -116,12 +117,12 @@ func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}) {
 
 // Users is a handler function that checks the request method and calls the appropriate handler.
 // It takes the user repository and Redis client as parameters.
-func Users(userRepo user.Repository, rdb cache.Repository) http.HandlerFunc {
+func Users(userRepo user.Repository, rdb cache.Repository, historyRepo history.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			getActiveSegments(w, r, rdb, userRepo)
 		} else if r.Method == "POST" {
-			IdempotentKeyMiddleware(rdb, addDelSegment, userRepo)(w, r)
+			IdempotentKeyMiddleware(rdb, addDelSegment, userRepo, historyRepo)(w, r)
 		}
 	}
 }

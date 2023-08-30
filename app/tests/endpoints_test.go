@@ -13,6 +13,7 @@ import (
 	"main/cmd/web/handlers"
 	redisRepoMock "main/internal/cache/mocks"
 	"main/internal/e"
+	historyRepoMock "main/internal/history/mocks"
 	"main/internal/segment"
 	segmentRepoMock "main/internal/segment/mocks"
 	"main/internal/user"
@@ -224,6 +225,7 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 	defer ctl.Finish()
 
 	userRepo := userRepoMock.NewMockRepository(ctl)
+	historyRepo := historyRepoMock.NewMockRepository(ctl)
 	cacheRepo := redisRepoMock.NewMockRepository(ctl)
 
 	testCases := []struct {
@@ -260,7 +262,7 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 		req := httptest.NewRequest("GET", "/segment/user", nil)
 		req.URL.RawQuery = fmt.Sprintf("id=%d", userId)
 		rr := httptest.NewRecorder()
-		handlers.Users(userRepo, cacheRepo)(rr, req)
+		handlers.Users(userRepo, cacheRepo, historyRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
 	}
 
@@ -295,7 +297,7 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 		req := httptest.NewRequest("GET", "/segment/user", nil)
 		req.URL.RawQuery = "id=" + tc.userId
 		rr := httptest.NewRecorder()
-		handlers.Users(userRepo, cacheRepo)(rr, req)
+		handlers.Users(userRepo, cacheRepo, historyRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
 	}
 
@@ -306,7 +308,7 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 	req := httptest.NewRequest("GET", "/segment/user", nil)
 	req.URL.RawQuery = "id=1"
 	rr := httptest.NewRecorder()
-	handlers.Users(userRepo, cacheRepo)(rr, req)
+	handlers.Users(userRepo, cacheRepo, historyRepo)(rr, req)
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 
 	// Test user id not found DB
@@ -316,7 +318,7 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 	req = httptest.NewRequest("GET", "/segment/user", nil)
 	req.URL.RawQuery = "id=1"
 	rr = httptest.NewRecorder()
-	handlers.Users(userRepo, cacheRepo)(rr, req)
+	handlers.Users(userRepo, cacheRepo, historyRepo)(rr, req)
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
@@ -327,6 +329,7 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 
 	userRepo := userRepoMock.NewMockRepository(ctl)
 	cacheRepo := redisRepoMock.NewMockRepository(ctl)
+	historyRepo := historyRepoMock.NewMockRepository(ctl)
 
 	testCasesErr := []struct {
 		name           string
@@ -383,7 +386,7 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 		req := httptest.NewRequest("POST", "/segment/user", bytes.NewBuffer([]byte(tc.body)))
 		req.Header.Add("Idempotency-Key", key)
 		rr := httptest.NewRecorder()
-		handlers.Users(userRepo, cacheRepo)(rr, req)
+		handlers.Users(userRepo, cacheRepo, historyRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
 	}
 
@@ -417,7 +420,7 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 			SegmentsDel: tc.del,
 		}
 
-		userRepo.EXPECT().AddDelSegments(ctx, &s)
+		userRepo.EXPECT().AddDelSegments(ctx, &s, historyRepo)
 
 		body, err := json.Marshal(s)
 		require.NoError(t, err)
@@ -425,7 +428,7 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 		req := httptest.NewRequest("POST", "/segment/user", bytes.NewBuffer(body))
 		req.Header.Add("Idempotency-Key", key)
 		rr := httptest.NewRecorder()
-		handlers.Users(userRepo, cacheRepo)(rr, req)
+		handlers.Users(userRepo, cacheRepo, historyRepo)(rr, req)
 		assert.Equal(t, tc.expectedStatus, rr.Code)
 	}
 
@@ -434,7 +437,7 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 	req := httptest.NewRequest("POST", "/segment/user", bytes.NewBuffer([]byte(`{}`)))
 	req.Header.Add("Idempotency-Key", key)
 	rr := httptest.NewRecorder()
-	handlers.Users(userRepo, cacheRepo)(rr, req)
+	handlers.Users(userRepo, cacheRepo, historyRepo)(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 

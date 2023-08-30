@@ -6,6 +6,7 @@ package mock_user
 
 import (
 	context "context"
+	history "main/internal/history"
 	user "main/internal/user"
 	reflect "reflect"
 
@@ -36,17 +37,17 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // AddDelSegments mocks base method.
-func (m *MockRepository) AddDelSegments(ctx context.Context, s *user.SegmentsAddDelDto) error {
+func (m *MockRepository) AddDelSegments(ctx context.Context, s *user.SegmentsAddDelDto, historyRepo history.Repository) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddDelSegments", ctx, s)
+	ret := m.ctrl.Call(m, "AddDelSegments", ctx, s, historyRepo)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AddDelSegments indicates an expected call of AddDelSegments.
-func (mr *MockRepositoryMockRecorder) AddDelSegments(ctx, s interface{}) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) AddDelSegments(ctx, s, historyRepo interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDelSegments", reflect.TypeOf((*MockRepository)(nil).AddDelSegments), ctx, s)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDelSegments", reflect.TypeOf((*MockRepository)(nil).AddDelSegments), ctx, s, historyRepo)
 }
 
 // CreateUser mocks base method.
@@ -79,15 +80,15 @@ func (mr *MockRepositoryMockRecorder) DelUser(ctx, userId interface{}) *gomock.C
 }
 
 // DeleteSegmentsEveryDay mocks base method.
-func (m *MockRepository) DeleteSegmentsEveryDay(ctx context.Context) {
+func (m *MockRepository) DeleteSegmentsEveryDay(ctx context.Context, historyRepo history.Repository) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteSegmentsEveryDay", ctx)
+	m.ctrl.Call(m, "DeleteSegmentsEveryDay", ctx, historyRepo)
 }
 
 // DeleteSegmentsEveryDay indicates an expected call of DeleteSegmentsEveryDay.
-func (mr *MockRepositoryMockRecorder) DeleteSegmentsEveryDay(ctx interface{}) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) DeleteSegmentsEveryDay(ctx, historyRepo interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSegmentsEveryDay", reflect.TypeOf((*MockRepository)(nil).DeleteSegmentsEveryDay), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSegmentsEveryDay", reflect.TypeOf((*MockRepository)(nil).DeleteSegmentsEveryDay), ctx, historyRepo)
 }
 
 // FindAll mocks base method.
