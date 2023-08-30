@@ -35,7 +35,7 @@ func getActiveSegments(w http.ResponseWriter, r *http.Request, rdb cache.Reposit
 	ctx := context.Background()
 	var us user.Segments
 	redisKey := fmt.Sprintf("avito_user_%d", id)
-	err = rdb.GetFromCache(ctx, redisKey, &us)
+	err = rdb.Get(ctx, redisKey, &us)
 	if err != nil {
 		log.Println("error to retrive cache:", err)
 		u, err := userRepo.FindByUserId(ctx, id)

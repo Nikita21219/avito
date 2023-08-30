@@ -8,6 +8,7 @@ import (
 	context "context"
 	history "main/internal/history"
 	reflect "reflect"
+	time "time"
 
 	gomock "github.com/golang/mock/gomock"
 	pgx "github.com/jackc/pgx/v4"
@@ -48,4 +49,19 @@ func (m *MockRepository) Create(ctx context.Context, history *history.History, t
 func (mr *MockRepositoryMockRecorder) Create(ctx, history, tx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, history, tx)
+}
+
+// GetFromDate mocks base method.
+func (m *MockRepository) GetFromDate(ctx context.Context, date time.Time) ([]history.HistoryDto, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFromDate", ctx, date)
+	ret0, _ := ret[0].([]history.HistoryDto)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFromDate indicates an expected call of GetFromDate.
+func (mr *MockRepositoryMockRecorder) GetFromDate(ctx, date interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFromDate", reflect.TypeOf((*MockRepository)(nil).GetFromDate), ctx, date)
 }

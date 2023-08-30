@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/mock/gomock"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"main/cmd/web/handlers"
@@ -24,9 +23,9 @@ import (
 	"time"
 )
 
-func uniqueKey() string {
-	return uuid.New().String()
-}
+//func UniqueKey() string {
+//	return uuid.New().String()
+//}
 
 func TestCreateSegmentsEndpoint(t *testing.T) {
 	ctl := gomock.NewController(t)
@@ -69,7 +68,7 @@ func TestCreateSegmentsEndpoint(t *testing.T) {
 		},
 	}
 
-	key := uniqueKey()
+	key := handlers.UniqueKey()
 	for _, tc := range testCases {
 		if tc.expectedStatus == http.StatusOK {
 			segmentRepo.EXPECT().Create(ctx, &segment.Segment{Slug: tc.segmentName})
@@ -143,7 +142,7 @@ func TestDeleteSegmentsEndpoint(t *testing.T) {
 	segmentRepo := segmentRepoMock.NewMockRepository(ctl)
 	cacheRepo := redisRepoMock.NewMockRepository(ctl)
 
-	key := uniqueKey()
+	key := handlers.UniqueKey()
 	testCases := []struct {
 		name           string
 		expectedStatus int
@@ -378,7 +377,7 @@ func TestAddDelSegmentsEndpoint(t *testing.T) {
 		},
 	}
 
-	key := uniqueKey()
+	key := handlers.UniqueKey()
 	for _, tc := range testCasesErr {
 		cacheRepo.EXPECT().Exists(ctx, key).Return(int64(0), nil)
 		cacheRepo.EXPECT().Set(ctx, key, true, 60*time.Minute)
@@ -460,3 +459,5 @@ func TestRateLimiter(t *testing.T) {
 	limiterMiddleware.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 }
+
+// TODO test reports

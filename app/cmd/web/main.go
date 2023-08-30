@@ -23,6 +23,20 @@ func init() {
 }
 
 func main() {
+	//story := []history.HistoryDto{
+	//	{
+	//		UserId:      1,
+	//		SegmentSlug: "AVITO_TEST",
+	//		Operation:   "deleted",
+	//		Date:        "2023-08-30 08:31:15.000000",
+	//	},
+	//}
+	//link, err := reportcsv.CreateReport(story)
+	//if err != nil {
+	//	log.Fatalln("error to create report:", err)
+	//}
+	//_ = link
+
 	// Create postgres client
 	psqlClient, err := pkg.NewPsqlClient(context.Background(), cfg)
 	if err != nil {
@@ -34,8 +48,6 @@ func main() {
 	if err != nil {
 		log.Fatalln("Error create redis client:", err)
 	}
-
-	//reportcsv.CreateReport()
 
 	// Init repositories
 	userRepo := user.NewRepo(psqlClient)
@@ -59,6 +71,18 @@ func main() {
 	r.HandleFunc("/segment/user", handlers.RateLimiter(
 		handlers.Users(userRepo, cacheRepo, historyRepo)),
 	).Methods("POST", "GET")
+
+	r.HandleFunc("/report", handlers.RateLimiter(
+		handlers.Reports(historyRepo, cacheRepo, cfg)),
+	).Methods("GET")
+
+	r.HandleFunc("/report_check", handlers.RateLimiter(
+		handlers.ReportCheck(cacheRepo)),
+	).Methods("GET")
+
+	r.HandleFunc("/download", handlers.RateLimiter(
+		handlers.DownloadHandler()),
+	).Methods("GET")
 
 	http.Handle("/", r)
 

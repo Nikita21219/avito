@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 	"io"
 	"log"
@@ -99,4 +100,9 @@ func RateLimiter(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 		}
 	}
+}
+
+// TODO fill doc
+func UniqueKey() string {
+	return uuid.New().String()
 }

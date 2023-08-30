@@ -34,7 +34,7 @@ func (r *repository) AddToCache(ctx context.Context, key string, data interface{
 // GetFromCache retrieves data from the Redis cache using the specified key.
 // It retrieves the data from the cache and unmarshals it from JSON format to the provided data structure.
 // The function returns an error if there's an issue with cache retrieval or unmarshaling.
-func (r *repository) GetFromCache(ctx context.Context, key string, data interface{}) error {
+func (r *repository) Get(ctx context.Context, key string, data interface{}) error {
 	value, err := r.client.Get(ctx, key).Result()
 	if err != nil {
 		return err
