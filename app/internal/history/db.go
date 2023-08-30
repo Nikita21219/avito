@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"main/pkg"
 	"strings"
+	"time"
 )
 
 type repository struct {
@@ -39,6 +40,31 @@ func (r *repository) Create(ctx context.Context, history *History, tx pgx.Tx) er
 	}
 
 	return nil
+}
+
+func (r *repository) GetFromDate(ctx context.Context, date time.Time) ([]HistoryDto, error) {
+	q := `SELECT user_id, slug, operation, date
+		  FROM history JOIN segments s on s.segment_id = history.segment_id
+          WHERE date >= $1;`
+
+	rows, err := r.client.Query(ctx, q, date.Format("2006-01-02 15:04:05"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := make([]HistoryDto, 0)
+	for rows.Next() {
+		var dto HistoryDto
+		var d time.Time
+		if err = rows.Scan(&dto.UserId, &dto.SegmentSlug, &dto.Operation, &d); err != nil {
+			return nil, err
+		}
+		dto.Date = d.Format("2006-01-02 15:04:05")
+		res = append(res, dto)
+	}
+
+	return res, nil
 }
 
 func NewRepo(client pkg.DBClient) Repository {

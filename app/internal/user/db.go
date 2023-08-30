@@ -297,11 +297,7 @@ func (r *repository) DelUser(ctx context.Context, userId int) error {
 // TODO fix doc (added new param)
 func (r *repository) DeleteSegmentsEveryDay(ctx context.Context, historyRepo history.Repository) {
 	s := gocron.NewScheduler(time.UTC)
-	//_, err := s.Every(1).Day().At("00:00").Do(func() error { // TODO uncomment me
-	_, err := s.Every(1).Seconds().Do(func() error { // TODO del me
-
-		fmt.Println("gocron working...")
-
+	_, err := s.Every(1).Day().At("00:00").Do(func() error {
 		tx, err := r.client.Begin(ctx)
 		if err != nil {
 			return err
@@ -317,7 +313,7 @@ func (r *repository) DeleteSegmentsEveryDay(ctx context.Context, historyRepo his
 			}
 		}()
 
-		// key: userId, value: slice of segmentIds witch deleted
+		// key: userId, value: slice of segment ids witch deleted
 		h := make(map[int][]int)
 
 		q := `DELETE FROM user_segments WHERE alive_until <= $1 RETURNING user_id, segment_id;`
