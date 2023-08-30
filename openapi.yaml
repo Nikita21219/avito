@@ -11,6 +11,7 @@ servers:
 tags:
   - name: segment
   - name: user-segments
+  - name: report
 
 paths:
   /segment:
@@ -167,3 +168,95 @@ paths:
           description: Ключ идемпотентности уже был обработан либо пользователь уже входит в один из сегментов
         '500':
           description: Внутренняя ошибка сервера
+  /report:
+    get:
+      tags:
+        - report
+      summary: Генерация отчета
+      description: Метод создает задачу для генерации отчета в отдельной горутине. В ответ возвращается task_id для дальнейшей передачи в /report_check
+      parameters:
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: С какой даты идет генерация отчета
+          example:
+            2023-08-30 06:31
+      responses:
+        '200':
+          description: Успешный ответ, возвращается идентификатор задачи
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponseReport'
+        '400':
+          description: Ошибка валидации
+        '500':
+          description: Внутренняя ошибка сервера
+  /report_check:
+    get:
+      tags:
+        - report
+      summary: Проверка статуса задачи по генерации отчета
+      description: "Получить статус выполнения задачи. Может быть три варианта: success, progress, fail. Если задача завершилась удачно, то в поле link_to_file будет ссылка по которой можно скачать готовый отчет в формате csv"
+      parameters:
+        - in: query
+          name: task_id
+          required: true
+          schema:
+            type: string
+          description: Идентификатор задачи
+      responses:
+        '200':
+          description: Успешный ответ с данными о статусе и ссылкой на файл.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponseReportCheck'
+        '400':
+          description: Ошибка валидации
+  /download:
+    get:
+      summary: Скачивание отчета с сервера
+      tags:
+        - report
+      description: Получение отчета для скачивания по его идентификатору
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Идентификатор файла (совпадает с идентификатором задачи)
+      responses:
+        '200':
+          description: Успешный ответ
+        '400':
+          description: Ошибка валидации
+
+components:
+  schemas:
+    SuccessResponseReportCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, fail, progress]
+          description: Статус задачи.
+        link_to_file:
+          type: string
+          format: uri
+          description: Ссылка на скачивание CSV файла.
+      example:
+        status: success
+        link_to_file: http://localhost:8080/download?id=32a6c48f-0001-4689-99f6-28e40d155198
+    SuccessResponseReport:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: Идентификатор задачи
+      example:
+        task_id: 2a3dacfb-1aa5-4e35-bb9d-d1c47a98e35a

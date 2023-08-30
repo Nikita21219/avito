@@ -20,6 +20,8 @@ type repository struct {
 	client pkg.DBClient
 }
 
+// FindAll retrieves all user IDs from the user_segments table in the repository.
+// It executes a query to select all user IDs and returns a slice of User pointers.
 func (r *repository) FindAll(ctx context.Context) ([]*User, error) {
 	q := `SELECT user_id FROM user_segments;`
 	rows, err := r.client.Query(ctx, q)
@@ -46,7 +48,6 @@ func (r *repository) FindAll(ctx context.Context) ([]*User, error) {
 }
 
 // FindByUserId is a method that retrieves segments associated with a user based on the provided user ID.
-// It takes a context and a user ID integer as parameters and returns a pointer to Segments and an error.
 func (r *repository) FindByUserId(ctx context.Context, userId int) (*Segments, error) {
 	q := `
 		SELECT us.segment_id, slug 
@@ -85,8 +86,6 @@ func (r *repository) FindByUserId(ctx context.Context, userId int) (*Segments, e
 }
 
 // getSegmentIdsBySlugs is a function that retrieves segment IDs based on the provided segment slugs.
-// It takes a context, a database transaction, and a slice of segment slugs as parameters.
-// It returns a slice of segment IDs and an error.
 func getSegmentIdsBySlugs(ctx context.Context, tx pgx.Tx, slugs []string) ([]int, error) {
 	q := `SELECT segment_id FROM segments WHERE slug = ANY($1);`
 	slugsArr := pgtype.TextArray{}
@@ -113,7 +112,6 @@ func getSegmentIdsBySlugs(ctx context.Context, tx pgx.Tx, slugs []string) ([]int
 }
 
 // addSegments is a function that adds the user to the specified segments.
-// It takes a context, a user ID, a slice of segment slugs, and a database transaction as parameters.
 func addSegments(ctx context.Context, userId int, slugs []string, ttlDays *int, historyRepo history.Repository, tx pgx.Tx) error {
 	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
@@ -166,8 +164,6 @@ func addSegments(ctx context.Context, userId int, slugs []string, ttlDays *int, 
 }
 
 // delSegments is a function that deletes the specified segments from the user.
-// It takes a context, a user ID, a slice of segment slugs, and a database transaction as parameters.
-// TODO fix doc (added new param)
 func delSegments(ctx context.Context, userId int, slugs []string, historyRepo history.Repository, tx pgx.Tx) error {
 	segmentIds, err := getSegmentIdsBySlugs(ctx, tx, slugs)
 	if err != nil {
@@ -216,8 +212,6 @@ func delSegments(ctx context.Context, userId int, slugs []string, historyRepo hi
 }
 
 // AddDelSegments is a method of the repository that adds and deletes segments for a user within a single transaction.
-// It takes a context and a SegmentsAddDelDto struct as parameters.
-// The SegmentsAddDelDto struct contains user ID, segments to add, and segments to delete.
 // This function calls the functions to add and delete segments for the user in a single transaction.
 // If an error occurs during the process, a rollback will be triggered.
 func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto, historyRepo history.Repository) error {
@@ -250,7 +244,6 @@ func (r *repository) AddDelSegments(ctx context.Context, s *SegmentsAddDelDto, h
 }
 
 // CreateUser creates a new user record in the "users" table within the repository and returns the ID of the newly created row.
-// It takes a context.Context parameter for potential cancellation and timeout management.
 func (r *repository) CreateUser(ctx context.Context) (int, error) {
 	maxId, err := r.GetMaxId(ctx)
 	if err != nil {
@@ -267,7 +260,6 @@ func (r *repository) CreateUser(ctx context.Context) (int, error) {
 }
 
 // GetMaxId retrieves the maximum user ID from the "users" table in the repository.
-// It takes a context.Context parameter for potential cancellation and timeout management.
 func (r *repository) GetMaxId(ctx context.Context) (int, error) {
 	var userId int
 	q := `SELECT COALESCE(MAX(user_id), 0) FROM users;`
@@ -294,7 +286,6 @@ func (r *repository) DelUser(ctx context.Context, userId int) error {
 // within the segment.
 // The function is triggered every day at 03:00 AM in the Moscow time zone
 // when server load is at its lowest
-// TODO fix doc (added new param)
 func (r *repository) DeleteSegmentsEveryDay(ctx context.Context, historyRepo history.Repository) {
 	s := gocron.NewScheduler(time.UTC)
 	_, err := s.Every(1).Day().At("00:00").Do(func() error {

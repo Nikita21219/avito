@@ -18,8 +18,7 @@ import (
 
 // getActiveSegments is a handler function responsible for retrieving the active segments of a user.
 // The function checks the data in redis.
-// If there is no necessary data or an error has occurred, then it makes a request to the database
-// It takes the HTTP response writer, HTTP request, and a user repository as parameters.
+// If there is no necessary data or an error has occurred, then it makes a request to the database.
 func getActiveSegments(w http.ResponseWriter, r *http.Request, rdb cache.Repository, userRepo user.Repository) {
 	userId, ok := r.URL.Query()["id"]
 	if !ok || len(userId) != 1 {
@@ -79,7 +78,6 @@ func getActiveSegments(w http.ResponseWriter, r *http.Request, rdb cache.Reposit
 }
 
 // addDelSegment is a handler function responsible for adding and deleting user segments.
-// It takes the HTTP response writer, HTTP request, and a repository interface as parameters.
 func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}, historyRepo history.Repository) {
 	userRepo, ok := repo.(user.Repository)
 	if !ok {
@@ -116,7 +114,6 @@ func addDelSegment(w http.ResponseWriter, r *http.Request, repo interface{}, his
 }
 
 // Users is a handler function that checks the request method and calls the appropriate handler.
-// It takes the user repository and Redis client as parameters.
 func Users(userRepo user.Repository, rdb cache.Repository, historyRepo history.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {

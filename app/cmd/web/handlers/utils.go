@@ -14,15 +14,14 @@ import (
 	"main/internal/history"
 	"main/internal/segment"
 	"net/http"
+	"net/url"
 	"time"
 )
 
 type NextHandler func(w http.ResponseWriter, r *http.Request, repo interface{}, historyRepo history.Repository)
 
 // IdempotentKeyMiddleware is a middleware function that checks the idempotency key in Redis
-// before invoking the next handler function. It takes a Redis client, the next handler function,
-// and a repository interface as parameters and returns a new handler function.
-// TODO fix doc (added new param)
+// before invoking the next handler function.
 func IdempotentKeyMiddleware(rdb cache.Repository, next NextHandler, repo interface{}, historyRepo history.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idempotentKey := r.Header.Get("Idempotency-Key")
@@ -52,7 +51,6 @@ func IdempotentKeyMiddleware(rdb cache.Repository, next NextHandler, repo interf
 }
 
 // unmarshalSegment is a utility function that reads and parses the request body to retrieve a SegmentDto.
-// It takes the HTTP response writer and the HTTP request as parameters and returns a SegmentDto and an error.
 func unmarshalSegment(w http.ResponseWriter, r *http.Request) (*segment.SegmentDto, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -75,7 +73,6 @@ func unmarshalSegment(w http.ResponseWriter, r *http.Request) (*segment.SegmentD
 }
 
 // checkErrors is a utility function that checks for errors and responds with appropriate status codes.
-// It takes the HTTP response writer and an error as parameters.
 func checkErrors(w http.ResponseWriter, err error) {
 	var dse *e.DuplicateSegmentError
 	if errors.As(err, &dse) {
@@ -89,7 +86,6 @@ func checkErrors(w http.ResponseWriter, err error) {
 }
 
 // RateLimiter is a middleware function that acts as a rate limiter for incoming requests.
-// It takes the next handler function as a parameter and returns a new handler function.
 func RateLimiter(next http.HandlerFunc) http.HandlerFunc {
 	limiter := rate.NewLimiter(10, 10)
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +98,22 @@ func RateLimiter(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// TODO fill doc
+// UniqueKey generates and returns a unique string using the UUID4.
 func UniqueKey() string {
 	return uuid.New().String()
+}
+
+// GetDateQuery extracts and parses a date from the provided URL query parameters.
+// The function expects a single "date" parameter in the query, formatted as "2006-01-02 15:04".
+func GetDateQuery(query url.Values) (time.Time, error) {
+	date, ok := query["date"]
+	if !ok || len(date) != 1 {
+		return time.Time{}, fmt.Errorf("bad request")
+	}
+
+	t, err := time.Parse("2006-01-02 15:04", date[0])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("bad request")
+	}
+	return t, nil
 }

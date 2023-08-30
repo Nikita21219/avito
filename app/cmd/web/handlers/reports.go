@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -25,18 +26,9 @@ type Report struct {
 	LinkToFile string `json:"link_to_file"`
 }
 
-func (r *Report) MarshalBinary() ([]byte, error) {
-	return json.Marshal(r)
-}
-
-func (r *Report) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, r)
-}
-
-// TODO fill doc
+// genReport is a function that retrieves data from the database and passes it to a function
+// responsible for creating a CSV file.
 func genReport(ctx context.Context, historyRepo history.Repository, date time.Time, taskId string) error {
-	// TODO check context timeout
-
 	h, err := historyRepo.GetFromDate(ctx, date)
 	if err != nil {
 		return err
@@ -49,14 +41,11 @@ func genReport(ctx context.Context, historyRepo history.Repository, date time.Ti
 	return nil
 }
 
-// TODO fill doc
+// launchGenReport is an HTTP handler function that initiates the process of generating a report.
+// Upon receiving the request, the function starts a new goroutine to generate the report.
+// When the report generation is complete, the task status is updated to "success" in the redis.
 func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repository, historyRepo history.Repository, cfg *config.Config) {
-	date, ok := r.URL.Query()["date"]
-	if !ok || len(date) != 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	t, err := time.Parse("2006-01-02 15:04", date[0])
+	date, err := GetDateQuery(r.URL.Query())
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -74,8 +63,7 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 		return
 	}
 
-	err = rdb.Set(context.Background(), taskKey, b, ttl).Err()
-	if err != nil {
+	if err = rdb.Set(context.Background(), taskKey, b, ttl).Err(); err != nil {
 		log.Println("Error to set task in redis:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -85,20 +73,26 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
-		if err = genReport(ctx, historyRepo, t, taskId); err != nil {
+		if err = genReport(ctx, historyRepo, date, taskId); err != nil {
 			// If we could not get data from the database, then set the status to "fail"
-			report = Report{Status: "fail"}
-			reportBytes, err := json.Marshal(report)
+			log.Println("error to get history:", err)
+			reportBytes, err := json.Marshal(Report{Status: "fail"})
 			if err != nil {
 				log.Println("Error to marshal data:", err)
 				return
 			}
 			rdb.Set(ctx, taskKey, reportBytes, ttl)
-			log.Println("error to get history:", err)
 			return
 		}
 
-		linkToFile := fmt.Sprintf("http://%s:%s/download?id=%s", cfg.AppCfg.Host, cfg.AppCfg.Port, taskId)
+		linkToFile := fmt.Sprintf(
+			"%s://%s:%s/download?id=%s",
+			cfg.AppCfg.Scheme,
+			cfg.AppCfg.Host,
+			cfg.AppCfg.Port,
+			taskId,
+		)
+
 		report = Report{
 			Status:     "success",
 			LinkToFile: linkToFile,
@@ -109,8 +103,7 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 			return
 		}
 
-		err = rdb.Set(ctx, taskKey, reportBytes, ttl).Err()
-		if err != nil {
+		if err = rdb.Set(ctx, taskKey, reportBytes, ttl).Err(); err != nil {
 			log.Println("error to set result in redis:", err)
 			return
 		}
@@ -133,6 +126,8 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 	}
 }
 
+// checkReport is an HTTP handler function that allows checking the readiness of a report.
+// The report can be in one of three stages: "progress" "success" or "fail"
 func checkReport(w http.ResponseWriter, r *http.Request, rdb cache.Repository) {
 	id, ok := r.URL.Query()["task_id"]
 	if !ok || len(id) != 1 {
@@ -166,11 +161,11 @@ func checkReport(w http.ResponseWriter, r *http.Request, rdb cache.Repository) {
 	}
 }
 
-func DownloadHandler() http.HandlerFunc {
+// DownloadFile returns an HTTP handler function that allows downloading a file by its ID.
+func DownloadFile() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, ok := r.URL.Query()["id"]
-		if !ok || len(id) != 1 {
-			// TODO check, if id has dots. For example ../../filePath
+		if !ok || len(id) != 1 || strings.Contains(id[0], ".") || strings.Contains(id[0], "/") {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -179,7 +174,7 @@ func DownloadHandler() http.HandlerFunc {
 		file, err := os.Open(fileURL)
 		if err != nil {
 			log.Println("Failed to open file:", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		defer file.Close()
@@ -195,14 +190,12 @@ func DownloadHandler() http.HandlerFunc {
 	}
 }
 
-// TODO fill doc
 func Reports(historyRepo history.Repository, rdb cache.Repository, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		launchGenReport(w, r, rdb, historyRepo, cfg)
 	}
 }
 
-// TODO fill doc
 func ReportCheck(rdb cache.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		checkReport(w, r, rdb)

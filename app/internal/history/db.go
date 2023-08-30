@@ -14,7 +14,6 @@ type repository struct {
 }
 
 // Create is a method that adds a new segment to the segments table.
-// It takes a context and a Segment pointer as parameters and returns an error.
 func (r *repository) Create(ctx context.Context, history *History, tx pgx.Tx) error {
 	if len(history.SegmentIds) == 0 {
 		return nil

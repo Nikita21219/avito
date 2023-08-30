@@ -23,20 +23,6 @@ func init() {
 }
 
 func main() {
-	//story := []history.HistoryDto{
-	//	{
-	//		UserId:      1,
-	//		SegmentSlug: "AVITO_TEST",
-	//		Operation:   "deleted",
-	//		Date:        "2023-08-30 08:31:15.000000",
-	//	},
-	//}
-	//link, err := reportcsv.CreateReport(story)
-	//if err != nil {
-	//	log.Fatalln("error to create report:", err)
-	//}
-	//_ = link
-
 	// Create postgres client
 	psqlClient, err := pkg.NewPsqlClient(context.Background(), cfg)
 	if err != nil {
@@ -81,7 +67,7 @@ func main() {
 	).Methods("GET")
 
 	r.HandleFunc("/download", handlers.RateLimiter(
-		handlers.DownloadHandler()),
+		handlers.DownloadFile()),
 	).Methods("GET")
 
 	http.Handle("/", r)

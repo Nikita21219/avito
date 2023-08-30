@@ -14,8 +14,9 @@ type RedisConfig struct {
 }
 
 type AppConfig struct {
-	Host string `yaml:"host"`
-	Port string `yaml:"port"`
+	Host   string `yaml:"host"`
+	Port   string `yaml:"port"`
+	Scheme string `yaml:"scheme"`
 }
 
 type Config struct {

@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"main/internal/history"
 	"os"
+	"strconv"
 )
 
 var (
@@ -11,9 +12,8 @@ var (
 	FilePostfix = ".csv"
 )
 
+// CreateReport creates a csv report and writes the data to a file.
 func CreateReport(story []history.HistoryDto, fileName string) error {
-	// TODO read data from story
-
 	file, err := os.Create(CSVDir + fileName + FilePostfix)
 	if err != nil {
 		return err
@@ -22,19 +22,20 @@ func CreateReport(story []history.HistoryDto, fileName string) error {
 
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
+
 	headers := []string{"user", "segment", "operation", "date"}
-	data := [][]string{
-		{"2", "1", "deleted", "2023-08-30 08:31:15.000000"},
-		{"2", "1", "added", "2023-08-30 08:31:36.000000"},
-		{"2", "1", "deleted", "2023-08-30 08:32:03.000000"},
-	}
-	err = writer.Write(headers)
-	if err != nil {
+	if err = writer.Write(headers); err != nil {
 		return err
 	}
-	for _, row := range data {
-		err = writer.Write(row)
-		if err != nil {
+
+	for _, row := range story {
+		csvRow := []string{
+			strconv.Itoa(row.UserId),
+			row.SegmentSlug,
+			row.Operation,
+			row.Date,
+		}
+		if err = writer.Write(csvRow); err != nil {
 			return err
 		}
 	}

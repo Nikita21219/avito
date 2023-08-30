@@ -17,6 +17,7 @@ import (
 	segmentRepoMock "main/internal/segment/mocks"
 	"main/internal/user"
 	userRepoMock "main/internal/user/mocks"
+	"main/pkg/utils"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -460,4 +461,89 @@ func TestRateLimiter(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 }
 
-// TODO test reports
+func TestReports(t *testing.T) {
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+
+	historyRepo := historyRepoMock.NewMockRepository(ctl)
+	cacheRepo := redisRepoMock.NewMockRepository(ctl)
+
+	cfg := utils.LoadConfig("../config/app.yaml")
+
+	testCases := []struct {
+		name           string
+		expectedStatus int
+		date           string
+	}{
+		{
+			name:           "report_1",
+			expectedStatus: http.StatusBadRequest,
+			date:           "hello world",
+		},
+		{
+			name:           "report_2",
+			expectedStatus: http.StatusBadRequest,
+			date:           "2023-08-30 28",
+		},
+		{
+			name:           "report_3",
+			expectedStatus: http.StatusBadRequest,
+			date:           "2023-08-30",
+		},
+		{
+			name:           "report_4",
+			expectedStatus: http.StatusBadRequest,
+			date:           "2023.08.30 10:28",
+		},
+		{
+			name:           "report_5",
+			expectedStatus: http.StatusBadRequest,
+			date:           "10:28",
+		},
+	}
+
+	for _, tc := range testCases {
+		req := httptest.NewRequest("GET", "/report", nil)
+		req.URL.RawQuery = fmt.Sprintf("date=%s", tc.date)
+		rr := httptest.NewRecorder()
+		handlers.Reports(historyRepo, cacheRepo, cfg)(rr, req)
+		assert.Equal(t, tc.expectedStatus, rr.Code)
+	}
+}
+
+func TestDownloadFile(t *testing.T) {
+	testCases := []struct {
+		name           string
+		expectedStatus int
+		id             string
+	}{
+		{
+			name:           "download_1",
+			expectedStatus: http.StatusBadRequest,
+			id:             "../..",
+		},
+		{
+			name:           "download_2",
+			expectedStatus: http.StatusBadRequest,
+			id:             "..",
+		},
+		{
+			name:           "download_3",
+			expectedStatus: http.StatusBadRequest,
+			id:             "~/",
+		},
+		{
+			name:           "download_4",
+			expectedStatus: http.StatusBadRequest,
+			id:             "./././././././..",
+		},
+	}
+
+	for _, tc := range testCases {
+		req := httptest.NewRequest("GET", "/report", nil)
+		req.URL.RawQuery = fmt.Sprintf("id=%s", tc.id)
+		rr := httptest.NewRecorder()
+		handlers.DownloadFile()(rr, req)
+		assert.Equal(t, tc.expectedStatus, rr.Code)
+	}
+}
