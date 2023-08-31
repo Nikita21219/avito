@@ -1,6 +1,7 @@
 app:
   host: "app"
   port: "8080"
+  scheme: "http"
 
 db:
   user: "postgres"
