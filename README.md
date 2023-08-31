@@ -38,3 +38,62 @@ cd app; go test -coverpkg=./cmd/web/handlers/... -coverprofile=coverage.out ./te
 Минимальная нагрузка сервера обычно ночью, поэтому каждый день в 03:00 по МСК или 00:00 UTC будет запускаться задача на удаление пользователей из сегментов.
 В таблице user_segments столбец alive_until хранит информацию о том, до какого времени будет жить объект.
 Если текущее время стало больше либо равно чем alive_until, то пользователь будет удален из сегмента
+
+## Примеры curl запросов
+
+Создание сегмента POST /segment
+``` bash
+curl -X POST "http://localhost:8080/segment" \
+     -H "Content-Type: application/json" \
+     -H "Idempotency-Key: unique_key_1" \
+     -d '{
+          "slug": "AVITO_VOICE_MESSAGES"
+     }' \
+     -w "%{http_code}\n"
+```
+
+Удаление сегмента DELETE /segment
+``` bash
+curl -X DELETE "http://localhost:8080/segment" \
+     -H "Content-Type: application/json" \
+     -H "Idempotency-Key: unique_key_2" \
+     -d '{
+          "slug": "AVITO_VOICE_MESSAGES"
+     }' \
+     -w "%{http_code}\n"
+```
+
+Добавление и удаление сегментов пользователя POST /segment/user
+``` bash
+curl -X POST "http://localhost:8080/segment/user" \
+     -H "Content-Type: application/json" \
+     -H "Idempotency-Key: unique_key_3" \
+     -d '{
+          "user_id": 1,
+          "add": [
+            "AVITO_VOICE_MESSAGES"
+          ],
+          "del": [
+            "AVITO_DISCOUNT_50"
+          ],
+          "ttl_days": 5
+     }' \
+     -w "%{http_code}\n"
+```
+
+Получение сегментов пользователя GET /segment/user
+``` bash
+curl -X GET "http://localhost:8080/segment/user?id=1" \
+     -H "Content-Type: application/json" \
+     -w "%{http_code}\n"
+```
+
+Генерация отчета GET /report
+``` bash
+curl -X GET -G -d 'date=2023-08-29%2010:32' "http://localhost:8080/report"
+```
+
+Проверка статуса задачи по генерации отчета GET /report_check
+``` bash
+curl -X GET -G -d 'task_id=<id задачи с прошлого запроса>' "http://localhost:8080/report_check"
+```

@@ -88,7 +88,7 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 		linkToFile := fmt.Sprintf(
 			"%s://%s:%s/download?id=%s",
 			cfg.AppCfg.Scheme,
-			cfg.AppCfg.Host,
+			cfg.AppCfg.Domain,
 			cfg.AppCfg.Port,
 			taskId,
 		)
