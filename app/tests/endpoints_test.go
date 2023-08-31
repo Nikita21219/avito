@@ -500,6 +500,11 @@ func TestReports(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			date:           "10:28",
 		},
+		{
+			name:           "report_6",
+			expectedStatus: http.StatusBadRequest,
+			date:           "2022-13-11 10:28",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -614,6 +619,11 @@ func TestDownloadFile(t *testing.T) {
 			name:           "download_4",
 			expectedStatus: http.StatusBadRequest,
 			id:             "./././././././..",
+		},
+		{
+			name:           "download_does_not_exists_file",
+			expectedStatus: http.StatusBadRequest,
+			id:             "does_not_exists",
 		},
 	}
 
