@@ -48,6 +48,7 @@ func main() {
 	// Launch delete user segments (ttl)
 	userRepo.DeleteSegmentsEveryDay(ctx, historyRepo)
 
+	// Init routes
 	r := mux.NewRouter()
 
 	r.HandleFunc("/segment", handlers.RateLimiter(
@@ -73,8 +74,7 @@ func main() {
 	http.Handle("/", r)
 
 	addr := fmt.Sprintf("%s:%s", cfg.AppCfg.Host, cfg.AppCfg.Port)
-	err = http.ListenAndServe(addr, r)
-	if err != nil {
+	if err = http.ListenAndServe(addr, r); err != nil {
 		log.Fatalln("Error launch web server:", err)
 	}
 }

@@ -247,7 +247,7 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 
 	userId := 1
 	for _, tc := range testCases {
-		cacheRepo.EXPECT().GetFromCache(
+		cacheRepo.EXPECT().Get(
 			ctx,
 			fmt.Sprintf("avito_user_%d", userId),
 			gomock.Any(),
@@ -302,7 +302,7 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 	}
 
 	// Test user id not found redis
-	cacheRepo.EXPECT().GetFromCache(ctx, fmt.Sprintf("avito_user_%d", userId), gomock.Any()).Return(errors.New("redis: nil"))
+	cacheRepo.EXPECT().Get(ctx, fmt.Sprintf("avito_user_%d", userId), gomock.Any()).Return(errors.New("redis: nil"))
 	userRepo.EXPECT().FindByUserId(ctx, userId).Return(nil, &e.UserNotFoundError{UserId: userId})
 
 	req := httptest.NewRequest("GET", "/segment/user", nil)
@@ -312,7 +312,7 @@ func TestGetUserActiveSegmentsEndpoint(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 
 	// Test user id not found DB
-	cacheRepo.EXPECT().GetFromCache(ctx, fmt.Sprintf("avito_user_%d", userId), gomock.Any()).Return(errors.New("redis: nil"))
+	cacheRepo.EXPECT().Get(ctx, fmt.Sprintf("avito_user_%d", userId), gomock.Any()).Return(errors.New("redis: nil"))
 	userRepo.EXPECT().FindByUserId(ctx, userId).Return(&user.Segments{UserId: 0, Segments: make([]*segment.Segment, 0)}, nil)
 
 	req = httptest.NewRequest("GET", "/segment/user", nil)

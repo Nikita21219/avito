@@ -4,6 +4,8 @@ WORKDIR /app
 
 COPY app .
 
+RUN mkdir -p csv_report_storage
+
 RUN go build ./cmd/web
 
 CMD ["./web"]

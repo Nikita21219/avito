@@ -63,7 +63,8 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 		return
 	}
 
-	if err = rdb.Set(context.Background(), taskKey, b, ttl).Err(); err != nil {
+	res := rdb.Set(context.Background(), taskKey, b, ttl)
+	if res != nil && res.Err() != nil {
 		log.Println("Error to set task in redis:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -81,7 +82,12 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 				log.Println("Error to marshal data:", err)
 				return
 			}
-			rdb.Set(ctx, taskKey, reportBytes, ttl)
+
+			res = rdb.Set(ctx, taskKey, reportBytes, ttl)
+			if res != nil && res.Err() != nil {
+				log.Println("Error to set task in redis:", err)
+				return
+			}
 			return
 		}
 
@@ -103,7 +109,8 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 			return
 		}
 
-		if err = rdb.Set(ctx, taskKey, reportBytes, ttl).Err(); err != nil {
+		res = rdb.Set(ctx, taskKey, reportBytes, ttl)
+		if res != nil && res.Err() != nil {
 			log.Println("error to set result in redis:", err)
 			return
 		}
@@ -153,8 +160,8 @@ func checkReport(w http.ResponseWriter, r *http.Request, rdb cache.Repository) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(data)
-	if err != nil {
+
+	if _, err = w.Write(data); err != nil {
 		log.Println("Error write data:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return

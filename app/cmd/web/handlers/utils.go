@@ -45,7 +45,13 @@ func IdempotentKeyMiddleware(rdb cache.Repository, next NextHandler, repo interf
 			return
 		}
 
-		rdb.Set(ctx, idempotentKey, true, 60*time.Minute)
+		res := rdb.Set(ctx, idempotentKey, true, 60*time.Minute)
+		if res != nil && res.Err() != nil {
+			log.Println("can't set idempotency key in redis")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		next(w, r, repo, historyRepo)
 	}
 }

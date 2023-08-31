@@ -71,7 +71,7 @@ func (mr *MockRepositoryMockRecorder) Exists(ctx interface{}, keys ...interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exists", reflect.TypeOf((*MockRepository)(nil).Exists), varargs...)
 }
 
-// GetFromCache mocks base method.
+// Get mocks base method.
 func (m *MockRepository) Get(ctx context.Context, key string, data interface{}) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, key, data)
@@ -79,8 +79,8 @@ func (m *MockRepository) Get(ctx context.Context, key string, data interface{}) 
 	return ret0
 }
 
-// GetFromCache indicates an expected call of GetFromCache.
-func (mr *MockRepositoryMockRecorder) GetFromCache(ctx, key, data interface{}) *gomock.Call {
+// Get indicates an expected call of Get.
+func (mr *MockRepositoryMockRecorder) Get(ctx, key, data interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRepository)(nil).Get), ctx, key, data)
 }
