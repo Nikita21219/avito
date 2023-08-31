@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	taskPrefix = "report_task_"
+	TaskPrefix = "report_task_"
 )
 
 type Report struct {
@@ -54,7 +54,7 @@ func launchGenReport(w http.ResponseWriter, r *http.Request, rdb cache.Repositor
 	// Create task and set "progress" status
 	taskId := UniqueKey()
 	ttl := 5 * time.Hour
-	taskKey := taskPrefix + taskId
+	taskKey := TaskPrefix + taskId
 	report := Report{Status: "progress"}
 	b, err := json.Marshal(report)
 	if err != nil {
@@ -145,7 +145,7 @@ func checkReport(w http.ResponseWriter, r *http.Request, rdb cache.Repository) {
 
 	ctx := context.Background()
 	var report Report
-	err := rdb.Get(ctx, taskPrefix+taskId, &report)
+	err := rdb.Get(ctx, TaskPrefix+taskId, &report)
 	if err != nil {
 		log.Println("Error get data from redis:", err)
 		w.WriteHeader(http.StatusInternalServerError)

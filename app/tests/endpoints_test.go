@@ -511,6 +511,84 @@ func TestReports(t *testing.T) {
 	}
 }
 
+func TestReportCheckBadRequest(t *testing.T) {
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+
+	cacheRepo := redisRepoMock.NewMockRepository(ctl)
+
+	testCases := []struct {
+		name           string
+		expectedStatus int
+		rawQuery       string
+	}{
+		{
+			name:           "report_check_1",
+			expectedStatus: http.StatusBadRequest,
+			rawQuery:       "task_id=32dsafasdffdsa;asdf",
+		},
+		{
+			name:           "report_check_2",
+			expectedStatus: http.StatusBadRequest,
+			rawQuery:       "32dsafasdffdsa;asdf",
+		},
+		{
+			name:           "report_check_3",
+			expectedStatus: http.StatusBadRequest,
+			rawQuery:       "32dsafasdffdsa",
+		},
+	}
+
+	for _, tc := range testCases {
+		req := httptest.NewRequest("GET", "/report_check", nil)
+		req.URL.RawQuery = tc.rawQuery
+		rr := httptest.NewRecorder()
+		handlers.ReportCheck(cacheRepo)(rr, req)
+		assert.Equal(t, tc.expectedStatus, rr.Code)
+	}
+}
+
+func TestReportCheck(t *testing.T) {
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+
+	cacheRepo := redisRepoMock.NewMockRepository(ctl)
+
+	testCases := []struct {
+		name           string
+		expectedStatus int
+		taskId         string
+	}{
+		{
+			name:           "report_check_ok_1",
+			expectedStatus: http.StatusOK,
+			taskId:         "some_task_id",
+		},
+		{
+			name:           "report_check_ko_2",
+			expectedStatus: http.StatusInternalServerError,
+			taskId:         "some_task_id",
+		},
+	}
+
+	ctx := context.Background()
+	for _, tc := range testCases {
+		if tc.expectedStatus == http.StatusInternalServerError {
+			var report handlers.Report
+			cacheRepo.EXPECT().Get(ctx, handlers.TaskPrefix+tc.taskId, &report).Return(fmt.Errorf("some error"))
+		} else {
+			var report handlers.Report
+			cacheRepo.EXPECT().Get(ctx, handlers.TaskPrefix+tc.taskId, &report)
+		}
+
+		req := httptest.NewRequest("GET", "/report_check", nil)
+		req.URL.RawQuery = "task_id=" + tc.taskId
+		rr := httptest.NewRecorder()
+		handlers.ReportCheck(cacheRepo)(rr, req)
+		assert.Equal(t, tc.expectedStatus, rr.Code)
+	}
+}
+
 func TestDownloadFile(t *testing.T) {
 	testCases := []struct {
 		name           string
